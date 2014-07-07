@@ -5,6 +5,7 @@ using System.Text;
 using System.Timers;
 
 using SEModAPIInternal.API.Entity;
+using SEModAPIInternal.API.Entity.Sector.SectorObject.CubeGrid;
 using SEModAPIInternal.API.Entity.Sector.SectorObject.CubeGrid.CubeBlock;
 using SEModAPIInternal.Support;
 
@@ -36,7 +37,11 @@ namespace WarpDrivePlugin
 		{
 			m_linkedReactor = reactor;
 
-			m_warpFuelRequired = 100;
+			if (m_linkedReactor.Parent.Mass > 0)
+				m_warpFuelRequired = 25.0f + 0.00001f * m_linkedReactor.Parent.Mass;
+			else
+				m_warpFuelRequired = 100f;
+
 			m_warpDuration = 2000;
 			m_warpSpeedFactor = 100;
 
@@ -75,7 +80,7 @@ namespace WarpDrivePlugin
 
 		public float WarpFuel
 		{
-			get { return m_warpFuelRequired; }
+			get	{ return m_warpFuelRequired; }
 		}
 
 		public float WarpDuration
@@ -92,11 +97,14 @@ namespace WarpDrivePlugin
 		{
 			get
 			{
+				//These checks are arranged in order of least complex to most complex
+				//This is to ensure that the checks are going as fast as possible
+
 				if (m_isWarping)	//Already warping
 					return false;
 				if (m_linkedReactor.Enabled == false)	//Reactor is off
 					return false;
-				if (m_linkedReactor.Fuel < m_warpFuelRequired)	//Not enough fuel
+				if (m_linkedReactor.Fuel < WarpFuel)	//Not enough fuel
 					return false;
 
 				return true;
@@ -120,13 +128,15 @@ namespace WarpDrivePlugin
 
 				if (!CanWarp)
 					return;
+				if (IsPlayerInCockpit())
+					return;
 
-				LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + m_linkedReactor.Parent.Name + "' is warping!");
+				LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + m_linkedReactor.Parent.Name + "' is warping using " + WarpFuel.ToString() + " fuel!");
 
 				m_isWarping = true;
 
 				//Consume the fuel
-				float fuelRequired = m_warpFuelRequired;
+				float fuelRequired = WarpFuel;
 				float totalFuelRemoved = 0;
 				List<InventoryItemEntity> fuelItems = m_linkedReactor.Inventory.Items;
 				foreach (InventoryItemEntity fuelItem in fuelItems)
@@ -196,7 +206,7 @@ namespace WarpDrivePlugin
 
 				Vector3 velocity = (Vector3)m_linkedReactor.Parent.LinearVelocity;
 				float speed = velocity.Length();
-				if (speed < 100)
+				if (speed < 50)
 				{
 					m_linkedReactor.Parent.MaxLinearVelocity = (float)104.7;
 
@@ -221,6 +231,35 @@ namespace WarpDrivePlugin
 			m_slowDownTimer.Start();
 
 			LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + m_linkedReactor.Parent.Name + "' is slowing back down!");
+		}
+
+		protected bool IsPlayerInCockpit()
+		{
+			bool isPlayerInCockpit = false;
+			try
+			{
+				List<CubeBlockEntity> cubeBlocks = m_linkedReactor.Parent.CubeBlocks;
+				foreach (var cubeBlock in cubeBlocks)
+				{
+					if (cubeBlock.GetType() == typeof(CockpitEntity))
+					{
+						CockpitEntity cockpit = (CockpitEntity)cubeBlock;
+						if (cockpit.Pilot != null)
+						{
+							//TODO - Find a way to distinguish between normal cockpits and passenger seats
+							//Disabled until the above is satisfied
+							//isPlayerInCockpit = true;
+							break;
+						}
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				LogManager.GameLog.WriteLine(ex);
+			}
+
+			return isPlayerInCockpit;
 		}
 
 		#endregion

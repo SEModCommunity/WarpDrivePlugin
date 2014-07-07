@@ -105,6 +105,14 @@ namespace WarpDrivePlugin
 			}
 		}
 
+		public void OnBaseEntityCreated(BaseEntity entity)
+		{
+		}
+
+		public void OnBaseEntityDeleted(BaseEntity entity)
+		{
+		}
+
 		#endregion
 
 		protected List<ReactorEntity> GetCubeGridReactors(CubeGridEntity cubeGrid)
