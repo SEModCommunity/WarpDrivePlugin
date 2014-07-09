@@ -24,6 +24,11 @@ namespace WarpDrivePlugin
 	{
 		#region "Attributes"
 
+		private static float m_baseFuel;
+		private static float m_fuelRate;
+		private static float m_duration;
+		private static float m_speedFactor;
+
 		protected Dictionary<ReactorEntity, WarpEngine> m_warpEngineMap;
 		protected Timer m_warpEngineMapCleanupTimer;
 
@@ -34,9 +39,15 @@ namespace WarpDrivePlugin
 		public Core()
 		{
 			m_warpEngineMap = new Dictionary<ReactorEntity, WarpEngine>();
+
 			m_warpEngineMapCleanupTimer = new Timer();
 			m_warpEngineMapCleanupTimer.Interval = 5000;
 			m_warpEngineMapCleanupTimer.Elapsed += this.CleanUpEngineMap;
+
+			m_baseFuel = 25;
+			m_fuelRate = 1;
+			m_duration = 2;
+			m_speedFactor = 100;
 
 			Console.WriteLine("WarpDrivePlugin '" + Id.ToString() + "' constructed!");
 		}
@@ -50,12 +61,44 @@ namespace WarpDrivePlugin
 
 		#endregion
 
+		#region "Properties"
+
+		public static float BaseFuel
+		{
+			get { return m_baseFuel; }
+			set { m_baseFuel = value; }
+		}
+
+		public static float FuelRate
+		{
+			get { return m_fuelRate; }
+			set { m_fuelRate = value; }
+		}
+
+		public static float Duration
+		{
+			get { return m_duration; }
+			set { m_duration = value; }
+		}
+
+		public static float SpeedFactor
+		{
+			get { return m_speedFactor; }
+			set { m_speedFactor = value; }
+		}
+
+		#endregion
+
 		#region "Methods"
 
 		#region "EventHandlers"
 
 		public override void Update()
 		{
+			foreach (WarpEngine warpEngine in m_warpEngineMap.Values)
+			{
+				warpEngine.Update();
+			}
 		}
 
 		public void OnCubeGridMoved(CubeGridEntity cubeGrid)
