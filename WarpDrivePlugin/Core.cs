@@ -20,7 +20,7 @@ using VRageMath;
 
 namespace WarpDrivePlugin
 {
-	public class Core : PluginBase, ICubeGridHandler, IBaseEntityHandler
+	public class Core : PluginBase, ICubeBlockEventHandler
 	{
 		#region "Attributes"
 
@@ -29,8 +29,7 @@ namespace WarpDrivePlugin
 		private static float m_duration;
 		private static float m_speedFactor;
 
-		protected Dictionary<ReactorEntity, WarpEngine> m_warpEngineMap;
-		protected Timer m_warpEngineMapCleanupTimer;
+		protected Dictionary<CubeGridEntity, WarpEngine> m_warpEngineMap;
 
 		#endregion
 
@@ -38,11 +37,7 @@ namespace WarpDrivePlugin
 
 		public Core()
 		{
-			m_warpEngineMap = new Dictionary<ReactorEntity, WarpEngine>();
-
-			m_warpEngineMapCleanupTimer = new Timer();
-			m_warpEngineMapCleanupTimer.Interval = 5000;
-			m_warpEngineMapCleanupTimer.Elapsed += this.CleanUpEngineMap;
+			m_warpEngineMap = new Dictionary<CubeGridEntity, WarpEngine>();
 
 			m_baseFuel = 25;
 			m_fuelRate = 1;
@@ -54,8 +49,6 @@ namespace WarpDrivePlugin
 
 		public override void Init()
 		{
-			m_warpEngineMapCleanupTimer.Start();
-
 			Console.WriteLine("WarpDrivePlugin '" + Id.ToString() + "' initialized!");
 		}
 
@@ -98,143 +91,72 @@ namespace WarpDrivePlugin
 			foreach (WarpEngine warpEngine in m_warpEngineMap.Values)
 			{
 				warpEngine.Update();
-			}
-		}
 
-		public void OnCubeGridMoved(CubeGridEntity cubeGrid)
-		{
-		}
-
-		public void OnCubeGridCreated(CubeGridEntity cubeGrid)
-		{
-		}
-
-		public void OnCubeGridDeleted(CubeGridEntity cubeGrid)
-		{
-			foreach (ReactorEntity key in m_warpEngineMap.Keys)
-			{
-				if (key.Parent == cubeGrid)
-					m_warpEngineMap.Remove(key);
-			}
-		}
-
-		public void OnBaseEntityMoved(BaseEntity entity)
-		{
-			if (entity.GetType() == typeof(CubeGridEntity))
-			{
-				CubeGridEntity cubeGrid = (CubeGridEntity)entity;
-
-				Vector3 velocity = cubeGrid.LinearVelocity;
+				//Check if ship is going fast enough to warp
+				Vector3 velocity = warpEngine.Parent.LinearVelocity;
 				float speed = velocity.Length();
-
-				//Ship is at max speed but less than warp speed
-				if (speed > 100 && speed < 10000)
+				if (!warpEngine.IsWarping && speed > 100 && speed < 0.95 * m_speedFactor * 100)
 				{
-					if (cubeGrid.GridSizeEnum == MyCubeSize.Large)
-					{
-						//Get the list of reactors from the ship
-						List<ReactorEntity> reactors = GetCubeGridReactors(cubeGrid);
-						if (reactors.Count == 0)
-							return;
-
-						//Search for a warp reactor on the ship
-						ReactorEntity warpReactor = GetWarpReactor(reactors);
-						if (warpReactor == null)
-							return;
-
-						ActivateWarpReator(warpReactor);
-					}
+					if (warpEngine.CanWarp)
+						warpEngine.StartWarp();
 				}
 			}
 		}
 
-		public void OnBaseEntityCreated(BaseEntity entity)
+		public void OnCubeBlockCreated(CubeBlockEntity cubeBlock)
 		{
+			if (cubeBlock.Parent.GridSizeEnum != MyCubeSize.Large)
+				return;
+
+			List<Vector3I> matches = WarpEngine.GetDefinitionMatches(cubeBlock.Parent);
+
+			//Allow exactly 1 warp engine per cube grid
+			if (matches.Count == 1)
+			{
+				ProcessWarpEngineMatches(cubeBlock.Parent);
+			}
 		}
 
-		public void OnBaseEntityDeleted(BaseEntity entity)
+		public void OnCubeBlockDeleted(CubeBlockEntity cubeBlock)
 		{
+			if (cubeBlock.Parent.GridSizeEnum != MyCubeSize.Large)
+				return;
+
+			CleanUpEngineMap(cubeBlock);
 		}
 
 		#endregion
 
-		protected List<ReactorEntity> GetCubeGridReactors(CubeGridEntity cubeGrid)
+		protected void ProcessWarpEngineMatches(CubeGridEntity cubeGrid)
 		{
-			List<CubeBlockEntity> cubeBlocks = cubeGrid.CubeBlocks;
+			if (m_warpEngineMap.ContainsKey(cubeGrid))
+				return;
 
-			List<ReactorEntity> reactors = new List<ReactorEntity>();
-			foreach (CubeBlockEntity cubeBlock in cubeBlocks)
-			{
-				if (cubeBlock.GetType() == typeof(ReactorEntity))
-				{
-					ReactorEntity reactor = (ReactorEntity)cubeBlock;
-					reactors.Add(reactor);
-				}
-			}
-
-			return reactors;
+			WarpEngine warpEngine = new WarpEngine(cubeGrid);
+			m_warpEngineMap.Add(cubeGrid, warpEngine);
 		}
 
-		protected ReactorEntity GetWarpReactor(List<ReactorEntity> reactors)
+		protected void CleanUpEngineMap(CubeBlockEntity deletedCubeBlock)
 		{
-			//Search for a warp reactor on the ship
-			ReactorEntity warpReactor = null;
-			foreach (ReactorEntity reactor in reactors)
+			CubeGridEntity parent = deletedCubeBlock.Parent;
+
+			if (!m_warpEngineMap.ContainsKey(parent))
+				return;
+
+			WarpEngine warpEngine = m_warpEngineMap[parent];
+			bool shouldRemove = false;
+
+			foreach (CubeBlockEntity cubeBlock in warpEngine.Blocks)
 			{
-				if (reactor.Name == "WarpEngine")
+				if (cubeBlock == deletedCubeBlock || cubeBlock.IsDisposed)
 				{
-					warpReactor = reactor;
+					shouldRemove = true;
 					break;
 				}
 			}
 
-			return warpReactor;
-		}
-
-		protected void ActivateWarpReator(ReactorEntity reactor)
-		{
-			try
-			{
-				//Do some error checking
-				if (reactor == null)
-					return;
-				if (reactor.Parent == null)
-					return;
-				if (reactor.Parent.IsDisposed)
-					return;
-
-				//Get/Create the warp engine from the reactor
-				WarpEngine engine = null;
-				if (m_warpEngineMap.ContainsKey(reactor))
-				{
-					engine = m_warpEngineMap[reactor];
-				}
-				if (engine == null)
-				{
-					engine = new WarpEngine(reactor);
-					m_warpEngineMap.Add(reactor, engine);
-				}
-
-				//Check if the engine is capable of warping
-				if (!engine.CanWarp)
-					return;
-
-				//Run the warp procedure
-				engine.StartWarp();
-			}
-			catch (Exception ex)
-			{
-				LogManager.GameLog.WriteLine(ex);
-			}
-		}
-
-		protected void CleanUpEngineMap(Object source, ElapsedEventArgs e)
-		{
-			foreach (ReactorEntity key in m_warpEngineMap.Keys)
-			{
-				if (key.Parent == null || key.Parent.IsDisposed)
-					m_warpEngineMap.Remove(key);
-			}
+			if(shouldRemove || parent.IsDisposed)
+				m_warpEngineMap.Remove(parent);
 		}
 
 		#endregion
