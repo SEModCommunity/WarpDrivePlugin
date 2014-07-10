@@ -108,12 +108,12 @@ namespace WarpDrivePlugin
 			if (cubeBlock.Parent.GridSizeEnum != MyCubeSize.Large)
 				return;
 
-			List<Vector3I> matches = WarpEngine.GetDefinitionMatches(cubeBlock.Parent);
+			WarpEngine dummyEngine = new WarpEngine(null);
+			List<Vector3I> matches = dummyEngine.GetDefinitionMatches(cubeBlock.Parent);
 
-			//Allow exactly 1 warp engine per cube grid
-			if (matches.Count == 1)
+			if (matches.Count > 0)
 			{
-				ProcessWarpEngineMatches(cubeBlock.Parent);
+				ProcessWarpEngineMatches(cubeBlock.Parent, matches[0]);
 			}
 		}
 
@@ -127,12 +127,13 @@ namespace WarpDrivePlugin
 
 		#endregion
 
-		protected void ProcessWarpEngineMatches(CubeGridEntity cubeGrid)
+		protected void ProcessWarpEngineMatches(CubeGridEntity cubeGrid, Vector3I match)
 		{
 			if (m_warpEngineMap.ContainsKey(cubeGrid))
 				return;
 
 			WarpEngine warpEngine = new WarpEngine(cubeGrid);
+			warpEngine.LoadBlocksFromAnchor(match);
 			m_warpEngineMap.Add(cubeGrid, warpEngine);
 		}
 
