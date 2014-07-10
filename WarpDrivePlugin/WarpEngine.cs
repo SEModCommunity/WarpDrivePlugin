@@ -31,6 +31,7 @@ namespace WarpDrivePlugin
 		private float m_accelerationFactor;
 
 		private string m_oldBeaconName;
+		private float m_oldBeaconBroadcastRadius;
 
 		private DateTime m_lastUpdate;
 		private DateTime m_warpRequest;
@@ -57,6 +58,9 @@ namespace WarpDrivePlugin
 			m_isSlowingDown = false;
 
 			m_accelerationFactor = 2;
+
+			m_oldBeaconName = "";
+			m_oldBeaconBroadcastRadius = 10000;
 		}
 
 		#endregion
@@ -201,14 +205,21 @@ namespace WarpDrivePlugin
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
 
-				if (Beacon != null && speed > 100)
+				if (Beacon != null)
 				{
-					m_oldBeaconName = Beacon.CustomName;
-					Beacon.CustomName = "Warp Engine";
-				}
-				else
-				{
-					Beacon.CustomName = m_oldBeaconName;
+					if (speed > 100)
+					{
+						m_oldBeaconName = Beacon.CustomName;
+						m_oldBeaconBroadcastRadius = Beacon.BroadcastRadius;
+
+						Beacon.CustomName = "Warp Engine";
+						Beacon.BroadcastRadius = 100;
+					}
+					else
+					{
+						Beacon.CustomName = m_oldBeaconName;
+						Beacon.BroadcastRadius = m_oldBeaconBroadcastRadius;
+					}
 				}
 
 				if (m_isStartingWarp && speed > 100)
