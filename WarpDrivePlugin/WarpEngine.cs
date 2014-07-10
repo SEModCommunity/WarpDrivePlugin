@@ -23,11 +23,14 @@ namespace WarpDrivePlugin
 
 		private bool m_isStartingWarp;
 		private bool m_isWarping;
+		private bool m_isAtWarpSpeed;
 		private bool m_isSpeedingUp;
 		private bool m_isSlowingDown;
 
 		private float m_warpFuelRequired;
 		private float m_accelerationFactor;
+
+		private string m_oldBeaconName;
 
 		private DateTime m_lastUpdate;
 		private DateTime m_warpRequest;
@@ -49,6 +52,7 @@ namespace WarpDrivePlugin
 
 			m_isStartingWarp = false;
 			m_isWarping = false;
+			m_isAtWarpSpeed = false;
 			m_isSpeedingUp = false;
 			m_isSlowingDown = false;
 
@@ -159,86 +163,114 @@ namespace WarpDrivePlugin
 
 		#region "Methods"
 
-		public static void Init()
+		public override Dictionary<Vector3I, Type> GetMultiblockDefinition()
 		{
-			m_definition = new Dictionary<Vector3I, Type>();
+			Dictionary<Vector3I, Type> def = new Dictionary<Vector3I, Type>();
 
-			m_definition.Add(Vector3I.Zero, typeof(ReactorEntity));
-			m_definition.Add(new Vector3I(1, 0, 1), typeof(ReactorEntity));
-			m_definition.Add(new Vector3I(-1, 0, 1), typeof(ReactorEntity));
-			m_definition.Add(new Vector3I(0, 0, 2), typeof(ReactorEntity));
-			m_definition.Add(new Vector3I(0, 2, 1), typeof(ReactorEntity));
-			m_definition.Add(new Vector3I(1, 2, 1), typeof(ReactorEntity));
-			m_definition.Add(new Vector3I(-1, 2, 1), typeof(ReactorEntity));
-			m_definition.Add(new Vector3I(0, 2, 2), typeof(ReactorEntity));
+			def.Add(new Vector3I(0, 0, 0), typeof(ReactorEntity));
+			def.Add(new Vector3I(1, 0, 1), typeof(ReactorEntity));
+			def.Add(new Vector3I(-1, 0, 1), typeof(ReactorEntity));
+			def.Add(new Vector3I(0, 0, 2), typeof(ReactorEntity));
+			def.Add(new Vector3I(0, 2, 0), typeof(ReactorEntity));
+			def.Add(new Vector3I(1, 2, 1), typeof(ReactorEntity));
+			def.Add(new Vector3I(-1, 2, 1), typeof(ReactorEntity));
+			def.Add(new Vector3I(0, 2, 2), typeof(ReactorEntity));
 
-			m_definition.Add(new Vector3I(0, 1, 0), typeof(CubeBlockEntity));	//ConveyorTubeEntity
-			m_definition.Add(new Vector3I(1, 1, 1), typeof(CubeBlockEntity));	//ConveyorTubeEntity
-			m_definition.Add(new Vector3I(-1, 1, 1), typeof(CubeBlockEntity));	//ConveyorTubeEntity
-			m_definition.Add(new Vector3I(0, 1, 2), typeof(CubeBlockEntity));	//ConveyorTubeEntity
+			//def.Add(new Vector3I(0, 1, 0), typeof(CubeBlockEntity));	//ConveyorTubeEntity
+			//def.Add(new Vector3I(1, 1, 1), typeof(CubeBlockEntity));	//ConveyorTubeEntity
+			//def.Add(new Vector3I(-1, 1, 1), typeof(CubeBlockEntity));	//ConveyorTubeEntity
+			//def.Add(new Vector3I(0, 1, 2), typeof(CubeBlockEntity));	//ConveyorTubeEntity
 
-			m_definition.Add(new Vector3I(0, 0, 1), typeof(CubeBlockEntity));	//ConveyorEntity
+			//def.Add(new Vector3I(0, 0, 1), typeof(CubeBlockEntity));	//ConveyorEntity
 
-			m_definition.Add(new Vector3I(0, 2, 1), typeof(BeaconEntity));
+			def.Add(new Vector3I(0, 1, 1), typeof(BeaconEntity));
+
+			return def;
 		}
 
 		public void Update()
 		{
-			if (!IsFunctional)
-				return;
-
-			Beacon.CustomName = "Warp Engine";
-
-			m_timeSinceLastUpdate = DateTime.Now - m_lastUpdate;
-			m_lastUpdate = DateTime.Now;
-
-			if (m_isStartingWarp)
+			try
 			{
-				m_timeSinceWarpRequest = DateTime.Now - m_warpRequest;
+				if (!IsFunctional)
+					return;
 
-				if (m_timeSinceWarpRequest.Milliseconds > 10000)
+				m_timeSinceLastUpdate = DateTime.Now - m_lastUpdate;
+				m_lastUpdate = DateTime.Now;
+
+				Vector3 velocity = (Vector3)Parent.LinearVelocity;
+				float speed = velocity.Length();
+
+				if (Beacon != null && speed > 100)
 				{
-					Warp();
+					m_oldBeaconName = Beacon.CustomName;
+					Beacon.CustomName = "Warp Engine";
 				}
-			}
-
-			if (m_isWarping)
-			{
-				m_timeSinceWarpStart = DateTime.Now - m_warpStart;
-
-				if (m_isSpeedingUp && m_isSlowingDown)
+				else
 				{
+					Beacon.CustomName = m_oldBeaconName;
+				}
+
+				if (m_isStartingWarp && speed > 100)
+				{
+					m_timeSinceWarpRequest = DateTime.Now - m_warpRequest;
+
+					if (m_timeSinceWarpRequest.TotalMilliseconds > 10000)
+					{
+						Warp();
+					}
+				}
+
+				if (m_isWarping)
+				{
+					if (m_isAtWarpSpeed)
+					{
+						m_timeSinceWarpStart = DateTime.Now - m_warpStart;
+
+						if (speed > (0.95 * Core.SpeedFactor * 100) && m_timeSinceWarpStart.TotalMilliseconds > Core.Duration * 1000)
+						{
+							m_isSpeedingUp = false;
+							m_isAtWarpSpeed = false;
+							m_isSlowingDown = true;
+
+							if (SandboxGameAssemblyWrapper.IsDebugging)
+								LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is slowing back down!");
+						}
+					}
+
+					if (m_isSpeedingUp)
+					{
+						m_isSlowingDown = false;
+						m_isAtWarpSpeed = false;
+						SpeedUp();
+					}
+
+					if (m_isSlowingDown)
+					{
+						m_isSpeedingUp = false;
+						m_isAtWarpSpeed = false;
+						SlowDown();
+					}
+
+				}
+				else
+				{
+					m_isAtWarpSpeed = false;
 					m_isSpeedingUp = false;
-					m_isSlowingDown = true;
-				}
-
-				if (m_isSpeedingUp && !m_isSlowingDown)
-				{
-					SpeedUp();
-				}
-
-				if (m_isSlowingDown && !m_isSpeedingUp)
-				{
-					SlowDown();
-				}
-
-				if (!m_isSpeedingUp && !m_isSlowingDown && m_timeSinceWarpStart.Milliseconds > Core.Duration * 1000)
-				{
-					m_isSlowingDown = true;
-
-					if (SandboxGameAssemblyWrapper.IsDebugging)
-						LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is slowing back down!");
+					m_isSlowingDown = false;
 				}
 			}
-			else
+			catch (Exception ex)
 			{
-				m_isSpeedingUp = false;
-				m_isSlowingDown = false;
+				LogManager.GameLog.WriteLine(ex);
 			}
 		}
 
 		public void StartWarp()
 		{
+			if (m_isStartingWarp)
+				return;
+
 			m_isStartingWarp = true;
 			m_warpRequest = DateTime.Now;
 		}
@@ -279,12 +311,6 @@ namespace WarpDrivePlugin
 						break;
 				}
 
-				//Switch all of the reactors off
-				foreach (ReactorEntity reactor in Reactors)
-				{
-					reactor.Enabled = false;
-				}
-
 				//Set the ship's max speed
 				Parent.MaxLinearVelocity = 100 * Core.SpeedFactor;
 
@@ -305,6 +331,9 @@ namespace WarpDrivePlugin
 		{
 			try
 			{
+				if (!m_isSpeedingUp)
+					return;
+
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
 				if (speed > (0.95 * Core.SpeedFactor * 100))
@@ -312,12 +341,14 @@ namespace WarpDrivePlugin
 					if (SandboxGameAssemblyWrapper.IsDebugging)
 						LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is at warp speed!");
 
+					m_isAtWarpSpeed = true;
 					m_isSpeedingUp = false;
+					m_isSlowingDown = false;
 					m_warpStart = DateTime.Now;
 				}
 				else
 				{
-					float timeScaledAcceleration = m_accelerationFactor * (m_timeSinceLastUpdate.Milliseconds / 100);
+					float timeScaledAcceleration = 1 + ((float)m_timeSinceLastUpdate.TotalMilliseconds / 100);
 					Vector3 acceleration = new Vector3(timeScaledAcceleration, timeScaledAcceleration, timeScaledAcceleration);
 					Parent.LinearVelocity = Vector3.Multiply(Parent.LinearVelocity, acceleration);
 				}
@@ -333,22 +364,26 @@ namespace WarpDrivePlugin
 		{
 			try
 			{
+				if (!m_isSlowingDown)
+					return;
+
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
 				if (speed < 50)
 				{
-					Parent.MaxLinearVelocity = (float)104.7;
-
-					m_isSpeedingUp = false;
-					m_isSlowingDown = false;
-					m_isWarping = false;
-
 					if (SandboxGameAssemblyWrapper.IsDebugging)
 						LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is back at normal speed!");
+
+					m_isWarping = false;
+					m_isAtWarpSpeed = false;
+					m_isSpeedingUp = false;
+					m_isSlowingDown = false;
+
+					Parent.MaxLinearVelocity = (float)104.7;
 				}
 				else
 				{
-					float timeScaledAcceleration = m_accelerationFactor * (m_timeSinceLastUpdate.Milliseconds / 100);
+					float timeScaledAcceleration = 1 + ((float)m_timeSinceLastUpdate.TotalMilliseconds / 100);
 					Vector3 acceleration = new Vector3(timeScaledAcceleration, timeScaledAcceleration, timeScaledAcceleration);
 					Parent.LinearVelocity = Vector3.Divide(Parent.LinearVelocity, acceleration);
 				}
