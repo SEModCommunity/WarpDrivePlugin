@@ -47,7 +47,7 @@ namespace WarpDrivePlugin
 		public WarpEngine(CubeGridEntity parent)
 			: base(parent)
 		{
-			m_warpFuelRequired = Core.BaseFuel;
+			m_warpFuelRequired = Core._BaseFuel;
 
 			m_lastUpdate = DateTime.Now;
 
@@ -80,9 +80,9 @@ namespace WarpDrivePlugin
 			get
 			{
 				if (Parent.Mass > 0)
-					m_warpFuelRequired = Core.BaseFuel + Core.FuelRate * (Parent.Mass / 100000);
+					m_warpFuelRequired = Core._BaseFuel + Core._FuelRate * (Parent.Mass / 100000);
 				else
-					m_warpFuelRequired = Core.BaseFuel;
+					m_warpFuelRequired = Core._BaseFuel;
 
 				return m_warpFuelRequired;
 			}
@@ -224,7 +224,7 @@ namespace WarpDrivePlugin
 					{
 						m_timeSinceWarpStart = DateTime.Now - m_warpStart;
 
-						if (speed > (0.95 * Core.SpeedFactor * 100) && m_timeSinceWarpStart.TotalMilliseconds > Core.Duration * 1000)
+						if (speed > (0.95 * Core._SpeedFactor * 100) && m_timeSinceWarpStart.TotalMilliseconds > Core._Duration * 1000)
 						{
 							m_isSpeedingUp = false;
 							m_isAtWarpSpeed = false;
@@ -309,7 +309,7 @@ namespace WarpDrivePlugin
 				}
 
 				//Set the ship's max speed
-				Parent.MaxLinearVelocity = 100 * Core.SpeedFactor;
+				Parent.MaxLinearVelocity = 100 * Core._SpeedFactor;
 
 				//Start the acceleration procedure
 				m_isSpeedingUp = true;
@@ -339,7 +339,7 @@ namespace WarpDrivePlugin
 
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
-				if (speed > (0.95 * Core.SpeedFactor * 100))
+				if (speed > (0.95 * Core._SpeedFactor * 100))
 				{
 					if (SandboxGameAssemblyWrapper.IsDebugging)
 						LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is at warp speed!");

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Timers;
@@ -56,25 +57,61 @@ namespace WarpDrivePlugin
 
 		#region "Properties"
 
-		public static float BaseFuel
+		internal static float _BaseFuel
 		{
 			get { return m_baseFuel; }
 			set { m_baseFuel = value; }
 		}
 
-		public static float FuelRate
+		internal static float _FuelRate
 		{
 			get { return m_fuelRate; }
 			set { m_fuelRate = value; }
 		}
 
-		public static float Duration
+		internal static float _Duration
 		{
 			get { return m_duration; }
 			set { m_duration = value; }
 		}
 
-		public static float SpeedFactor
+		internal static float _SpeedFactor
+		{
+			get { return m_speedFactor; }
+			set { m_speedFactor = value; }
+		}
+
+		[Category("Warp Drive Plugin")]
+		[Browsable(true)]
+		[ReadOnly(false)]
+		public float BaseFuel
+		{
+			get { return m_baseFuel; }
+			set { m_baseFuel = value; }
+		}
+
+		[Category("Warp Drive Plugin")]
+		[Browsable(true)]
+		[ReadOnly(false)]
+		public float FuelRate
+		{
+			get { return m_fuelRate; }
+			set { m_fuelRate = value; }
+		}
+
+		[Category("Warp Drive Plugin")]
+		[Browsable(true)]
+		[ReadOnly(false)]
+		public float Duration
+		{
+			get { return m_duration; }
+			set { m_duration = value; }
+		}
+
+		[Category("Warp Drive Plugin")]
+		[Browsable(true)]
+		[ReadOnly(false)]
+		public float SpeedFactor
 		{
 			get { return m_speedFactor; }
 			set { m_speedFactor = value; }
