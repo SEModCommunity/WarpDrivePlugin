@@ -59,7 +59,10 @@ namespace WarpDrivePlugin
 
 			m_accelerationFactor = 2;
 
-			m_oldBeaconName = "";
+			if (parent != null)
+				m_oldBeaconName = parent.Name;
+			else
+				m_oldBeaconName = "";
 			m_oldBeaconBroadcastRadius = 10000;
 		}
 
@@ -205,23 +208,6 @@ namespace WarpDrivePlugin
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
 
-				if (Beacon != null)
-				{
-					if (speed > 100)
-					{
-						m_oldBeaconName = Beacon.CustomName;
-						m_oldBeaconBroadcastRadius = Beacon.BroadcastRadius;
-
-						Beacon.CustomName = "Warp Engine";
-						Beacon.BroadcastRadius = 100;
-					}
-					else
-					{
-						Beacon.CustomName = m_oldBeaconName;
-						Beacon.BroadcastRadius = m_oldBeaconBroadcastRadius;
-					}
-				}
-
 				if (m_isStartingWarp && speed > 100)
 				{
 					m_timeSinceWarpRequest = DateTime.Now - m_warpRequest;
@@ -328,6 +314,12 @@ namespace WarpDrivePlugin
 				//Start the acceleration procedure
 				m_isSpeedingUp = true;
 
+				m_oldBeaconName = Beacon.CustomName;
+				m_oldBeaconBroadcastRadius = Beacon.BroadcastRadius;
+
+				Beacon.CustomName = "Warp Engine";
+				Beacon.BroadcastRadius = 100;
+
 				if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is accelerating to warp speed!");
 			}
@@ -391,6 +383,9 @@ namespace WarpDrivePlugin
 					m_isSlowingDown = false;
 
 					Parent.MaxLinearVelocity = (float)104.7;
+
+					Beacon.CustomName = m_oldBeaconName;
+					Beacon.BroadcastRadius = m_oldBeaconBroadcastRadius;
 				}
 				else
 				{
