@@ -208,11 +208,11 @@ namespace WarpDrivePlugin
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
 
-				if (m_isStartingWarp && speed > 100)
+				if (m_isStartingWarp && speed > Core._SpeedThreshold)
 				{
 					m_timeSinceWarpRequest = DateTime.Now - m_warpRequest;
 
-					if (m_timeSinceWarpRequest.TotalMilliseconds > 10000)
+					if (m_timeSinceWarpRequest.TotalMilliseconds > Core._WarpDelay * 1000)
 					{
 						Warp();
 					}
@@ -317,8 +317,8 @@ namespace WarpDrivePlugin
 				m_oldBeaconName = Beacon.CustomName;
 				m_oldBeaconBroadcastRadius = Beacon.BroadcastRadius;
 
-				Beacon.CustomName = "Warp Engine";
-				Beacon.BroadcastRadius = 100;
+				Beacon.CustomName = Core._BeaconText;
+				Beacon.BroadcastRadius = Core._BeaconRange;
 
 				if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is accelerating to warp speed!");
@@ -372,7 +372,7 @@ namespace WarpDrivePlugin
 
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
-				if (speed < 50)
+				if (speed < 10)
 				{
 					if (SandboxGameAssemblyWrapper.IsDebugging)
 						LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is back at normal speed!");

@@ -29,6 +29,10 @@ namespace WarpDrivePlugin
 		private static float m_fuelRate;
 		private static float m_duration;
 		private static float m_speedFactor;
+		private static float m_beaconRange;
+		private static string m_beaconText;
+		private static float m_speedThreshold;
+		private static float m_warpDelay;
 
 		protected Dictionary<CubeGridEntity, WarpEngine> m_warpEngineMap;
 
@@ -44,6 +48,10 @@ namespace WarpDrivePlugin
 			m_fuelRate = 1;
 			m_duration = 2;
 			m_speedFactor = 100;
+			m_beaconRange = 100;
+			m_beaconText = "Warp Drive";
+			m_speedThreshold = 15;
+			m_warpDelay = 10;
 
 			Console.WriteLine("WarpDrivePlugin '" + Id.ToString() + "' constructed!");
 		}
@@ -79,6 +87,30 @@ namespace WarpDrivePlugin
 		{
 			get { return m_speedFactor; }
 			set { m_speedFactor = value; }
+		}
+
+		internal static float _BeaconRange
+		{
+			get { return m_beaconRange; }
+			set { m_beaconRange = value; }
+		}
+
+		internal static string _BeaconText
+		{
+			get { return m_beaconText; }
+			set { m_beaconText = value; }
+		}
+
+		internal static float _SpeedThreshold
+		{
+			get { return m_speedThreshold; }
+			set { m_speedThreshold = value; }
+		}
+
+		internal static float _WarpDelay
+		{
+			get { return m_warpDelay; }
+			set { m_warpDelay = value; }
 		}
 
 		[Category("Warp Drive Plugin")]
@@ -117,6 +149,42 @@ namespace WarpDrivePlugin
 			set { m_speedFactor = value; }
 		}
 
+		[Category("Warp Drive Plugin")]
+		[Browsable(true)]
+		[ReadOnly(false)]
+		public float BeaconRange
+		{
+			get { return m_beaconRange; }
+			set { m_beaconRange = value; }
+		}
+
+		[Category("Warp Drive Plugin")]
+		[Browsable(true)]
+		[ReadOnly(false)]
+		public string BeaconText
+		{
+			get { return m_beaconText; }
+			set { m_beaconText = value; }
+		}
+
+		[Category("Warp Drive Plugin")]
+		[Browsable(true)]
+		[ReadOnly(false)]
+		public float SpeedThreshold
+		{
+			get { return m_speedThreshold; }
+			set { m_speedThreshold = value; }
+		}
+
+		[Category("Warp Drive Plugin")]
+		[Browsable(true)]
+		[ReadOnly(false)]
+		public float WarpDelay
+		{
+			get { return m_warpDelay; }
+			set { m_warpDelay = value; }
+		}
+
 		#endregion
 
 		#region "Methods"
@@ -132,7 +200,7 @@ namespace WarpDrivePlugin
 				//Check if ship is going fast enough to warp
 				Vector3 velocity = warpEngine.Parent.LinearVelocity;
 				float speed = velocity.Length();
-				if (!warpEngine.IsWarping && speed > 100 && speed < 0.95 * m_speedFactor * 100)
+				if (!warpEngine.IsWarping && speed > m_speedThreshold && speed < 0.95 * m_speedFactor * 100)
 				{
 					if (warpEngine.CanWarp)
 						warpEngine.StartWarp();
