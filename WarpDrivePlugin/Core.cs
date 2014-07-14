@@ -214,11 +214,17 @@ namespace WarpDrivePlugin
 				return;
 
 			WarpEngine dummyEngine = new WarpEngine(null);
-			List<Vector3I> matches = dummyEngine.GetDefinitionMatches(cubeBlock.Parent);
-
-			if (matches.Count > 0)
+			if (dummyEngine.IsDefinitionMatch(cubeBlock))
 			{
-				ProcessWarpEngineMatches(cubeBlock.Parent, matches[0]);
+				if (m_warpEngineMap.ContainsKey(cubeBlock.Parent))
+					return;
+
+				if(SandboxGameAssemblyWrapper.IsDebugging)
+					LogManager.APILog.WriteLineAndConsole("Created warp engine on cube grid '" + cubeBlock.Parent.Name + "'");
+
+				WarpEngine warpEngine = new WarpEngine(cubeBlock.Parent);
+				warpEngine.LoadBlocksFromAnchor(cubeBlock.Min);
+				m_warpEngineMap.Add(cubeBlock.Parent, warpEngine);
 			}
 		}
 
@@ -231,16 +237,6 @@ namespace WarpDrivePlugin
 		}
 
 		#endregion
-
-		protected void ProcessWarpEngineMatches(CubeGridEntity cubeGrid, Vector3I match)
-		{
-			if (m_warpEngineMap.ContainsKey(cubeGrid))
-				return;
-
-			WarpEngine warpEngine = new WarpEngine(cubeGrid);
-			warpEngine.LoadBlocksFromAnchor(match);
-			m_warpEngineMap.Add(cubeGrid, warpEngine);
-		}
 
 		protected void CleanUpEngineMap(CubeBlockEntity deletedCubeBlock)
 		{
