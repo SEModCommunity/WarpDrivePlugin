@@ -17,7 +17,7 @@ using VRageMath;
 
 namespace WarpDrivePlugin
 {
-	public class WarpEngine : MultiblockStructure
+	public class WarpEngine : MultiblockStructure, IDisposable
 	{
 		#region "Attributes"
 
@@ -26,6 +26,7 @@ namespace WarpDrivePlugin
 		private bool m_isAtWarpSpeed;
 		private bool m_isSpeedingUp;
 		private bool m_isSlowingDown;
+		private bool m_isDisposed;
 
 		private float m_warpFuelRequired;
 		private float m_accelerationFactor;
@@ -56,6 +57,7 @@ namespace WarpDrivePlugin
 			m_isAtWarpSpeed = false;
 			m_isSpeedingUp = false;
 			m_isSlowingDown = false;
+			m_isDisposed = false;
 
 			m_accelerationFactor = 2;
 
@@ -118,6 +120,11 @@ namespace WarpDrivePlugin
 			}
 		}
 
+		public bool IsDisposed
+		{
+			get { return m_isDisposed; }
+		}
+
 		protected BeaconEntity Beacon
 		{
 			get
@@ -170,9 +177,16 @@ namespace WarpDrivePlugin
 
 		#region "Methods"
 
+		public void Dispose()
+		{
+			m_isDisposed = true;
+		}
+
 		public override Dictionary<Vector3I, Type> GetMultiblockDefinition()
 		{
 			Dictionary<Vector3I, Type> def = new Dictionary<Vector3I, Type>();
+			if (IsDisposed)
+				return def;
 
 			def.Add(new Vector3I(0, 0, 0), typeof(ReactorEntity));
 			def.Add(new Vector3I(1, 0, 1), typeof(ReactorEntity));
@@ -197,10 +211,20 @@ namespace WarpDrivePlugin
 
 		public void Update()
 		{
+			if (IsDisposed)
+				return;
+
 			try
 			{
-				if (!IsFunctional)
+				try
+				{
+					if (!this.IsFunctional)
+						return;
+				}
+				catch
+				{
 					return;
+				}
 
 				m_timeSinceLastUpdate = DateTime.Now - m_lastUpdate;
 				m_lastUpdate = DateTime.Now;
@@ -265,6 +289,9 @@ namespace WarpDrivePlugin
 
 		public void StartWarp()
 		{
+			if (IsDisposed)
+				return;
+
 			if (m_isStartingWarp)
 				return;
 
