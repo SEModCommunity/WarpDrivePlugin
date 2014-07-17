@@ -228,14 +228,25 @@ namespace WarpDrivePlugin
 			TimeSpan timeSinceLastFullScan = DateTime.Now - m_lastFullScan;
 			if (timeSinceLastFullScan.TotalMilliseconds > 30000)
 			{
-				LogManager.APILog.WriteLine("Scanning all entities for valid warp drives ...");
+				m_lastFullScan = DateTime.Now;
+				LogManager.APILog.WriteLine("WarpDrivePlugin - Initializing full scan ...");
 
 				//Run cleanup
 				CleanUpEngineMap();
 
-				//Run full scan
-				FullScan();
+				//Queue up a full scan
+				Action action = FullScan;
+				SandboxGameAssemblyWrapper.Instance.EnqueueMainGameAction(action);
 			}
+		}
+
+		public override void Shutdown()
+		{
+			foreach (WarpEngine warpEngine in m_warpEngineMap.Values)
+			{
+				warpEngine.Dispose();
+			}
+			m_warpEngineMap.Clear();
 		}
 
 		public void OnCubeBlockCreated(CubeBlockEntity cubeBlock)
@@ -267,30 +278,42 @@ namespace WarpDrivePlugin
 
 		public void OnCubeBlockDeleted(CubeBlockEntity cubeBlock)
 		{
-			if (cubeBlock.Parent.GridSizeEnum != MyCubeSize.Large)
+			if (cubeBlock == null)
 				return;
 
 			CubeGridEntity cubeGrid = cubeBlock.Parent;
 
-			if (cubeGrid == null || !m_warpEngineMap.ContainsKey(cubeGrid))
+			//Check for invalid cube grid
+			if (cubeGrid == null)
 				return;
+			if (cubeGrid.GridSizeEnum != MyCubeSize.Large)
+				return;
+			if (!m_warpEngineMap.ContainsKey(cubeGrid))
+				return;
+			if (cubeGrid.IsDisposed)
+			{
+				RemoveWarpEngine(cubeGrid);
+				return;
+			}
 
+			//Check for invalid warp engine
 			WarpEngine warpEngine = m_warpEngineMap[cubeGrid];
-			bool shouldRemove = false;
+			if (warpEngine == null)
+				return;
+			if (warpEngine.IsDisposed)
+			{
+				RemoveWarpEngine(cubeGrid);
+				return;
+			}
+
+			//Check for invalid blocks
 			foreach (CubeBlockEntity block in warpEngine.Blocks)
 			{
 				if (block == null || block == cubeBlock || block.IsDisposed)
 				{
-					shouldRemove = true;
+					RemoveWarpEngine(cubeGrid);
 					break;
 				}
-			}
-			if (cubeGrid.IsDisposed)
-				shouldRemove = true;
-
-			if (shouldRemove)
-			{
-				RemoveWarpEngine(cubeGrid);
 			}
 		}
 
@@ -339,18 +362,26 @@ namespace WarpDrivePlugin
 
 		protected void CleanUpEngineMap()
 		{
-			foreach (WarpEngine engine in m_warpEngineMap.Values)
+			try
 			{
-				if (CheckEngineForRemoval(engine))
+				foreach (WarpEngine engine in m_warpEngineMap.Values)
 				{
-					RemoveWarpEngine(engine.Parent);
+					if (CheckEngineForRemoval(engine))
+					{
+						RemoveWarpEngine(engine.Parent);
+					}
 				}
+			}
+			catch (Exception ex)
+			{
+				LogManager.GameLog.WriteLine(ex);
 			}
 		}
 
 		protected void FullScan()
 		{
-			m_lastFullScan = DateTime.Now;
+			LogManager.APILog.WriteLine("WarpDrivePlugin - Scanning all entities for valid warp drives ...");
+			
 			foreach (BaseEntity entity in SectorObjectManager.Instance.GetTypedInternalData<BaseEntity>())
 			{
 				try
