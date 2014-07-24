@@ -27,13 +27,15 @@ namespace WarpDrivePlugin
 		private bool m_isSpeedingUp;
 		private bool m_isSlowingDown;
 		private bool m_isDisposed;
+		private bool m_isPowerSetup;
 
-		private float m_warpFuelRequired;
+		private float m_energyRequired;
 		private float m_accelerationFactor;
 
 		private string m_oldBeaconName;
 		private float m_oldBeaconBroadcastRadius;
 
+		private DateTime m_lastPowerCheck;
 		private DateTime m_lastUpdate;
 		private DateTime m_warpRequest;
 		private DateTime m_warpStart;
@@ -48,8 +50,9 @@ namespace WarpDrivePlugin
 		public WarpEngine(CubeGridEntity parent)
 			: base(parent)
 		{
-			m_warpFuelRequired = Core._BaseFuel;
+			m_energyRequired = Core._BaseFuel;
 
+			m_lastPowerCheck = DateTime.Now;
 			m_lastUpdate = DateTime.Now;
 
 			m_isStartingWarp = false;
@@ -58,13 +61,14 @@ namespace WarpDrivePlugin
 			m_isSpeedingUp = false;
 			m_isSlowingDown = false;
 			m_isDisposed = false;
+			m_isPowerSetup = false;
 
 			m_accelerationFactor = 2;
 
 			if (parent != null)
 				m_oldBeaconName = parent.Name;
 			else
-				m_oldBeaconName = "";
+				m_oldBeaconName = "Beacon";
 			m_oldBeaconBroadcastRadius = 10000;
 		}
 
@@ -77,31 +81,31 @@ namespace WarpDrivePlugin
 			get { return m_isWarping; }
 		}
 
-		public float WarpFuel
+		public float PowerRequired
 		{
 			get
 			{
 				if (Parent.Mass > 0)
-					m_warpFuelRequired = Core._BaseFuel + Core._FuelRate * (Parent.Mass / 100000);
+					m_energyRequired = Core._BaseFuel + Core._FuelRate * (Parent.Mass / 100000);
 				else
-					m_warpFuelRequired = Core._BaseFuel;
+					m_energyRequired = Core._BaseFuel;
 
-				return m_warpFuelRequired;
+				return m_energyRequired;
 			}
 		}
 
-		public float FuelLevel
+		public float PowerLevel
 		{
 			get
 			{
-				float fuelCount = 0;
+				float totalPower = 0;
 
-				foreach (InventoryItemEntity item in FuelItems)
+				foreach (BatteryBlockEntity battery in BatteryBlocks)
 				{
-					fuelCount += item.Amount;
+					totalPower += battery.CurrentStoredPower;
 				}
 
-				return fuelCount;
+				return totalPower;
 			}
 		}
 
@@ -109,11 +113,9 @@ namespace WarpDrivePlugin
 		{
 			get
 			{
-				if (IsWarping)		//Already warping
+				if (IsWarping) //Already warping
 					return false;
-				if (!IsFunctional)	//Reactors are off or other damage has been done to the warp engine
-					return false;
-				if (FuelLevel < WarpFuel)	//Not enough fuel
+				if (PowerLevel < PowerRequired) //Not enough energy
 					return false;
 
 				return true;
@@ -144,32 +146,21 @@ namespace WarpDrivePlugin
 			}
 		}
 
-		protected List<ReactorEntity> Reactors
+		protected List<BatteryBlockEntity> BatteryBlocks
 		{
 			get
 			{
-				List<ReactorEntity> reactors = new List<ReactorEntity>();
+				List<BatteryBlockEntity> list = new List<BatteryBlockEntity>();
 				foreach (CubeBlockEntity cubeBlock in Blocks)
 				{
-					if (cubeBlock is ReactorEntity)
-						reactors.Add((ReactorEntity)cubeBlock);
+					if (cubeBlock is BatteryBlockEntity)
+					{
+						BatteryBlockEntity battery = (BatteryBlockEntity)cubeBlock;
+						list.Add(battery);
+					}
 				}
 
-				return reactors;
-			}
-		}
-
-		protected List<InventoryItemEntity> FuelItems
-		{
-			get
-			{
-				List<InventoryItemEntity> fuelItems = new List<InventoryItemEntity>();
-				foreach (ReactorEntity reactor in Reactors)
-				{
-					fuelItems.AddRange(reactor.Inventory.Items);
-				}
-
-				return fuelItems;
+				return list;
 			}
 		}
 
@@ -179,34 +170,127 @@ namespace WarpDrivePlugin
 
 		public void Dispose()
 		{
+			RestoreBeacon();
+			RestoreBatteries();
+
 			m_isDisposed = true;
 		}
 
-		public override Dictionary<Vector3I, Type> GetMultiblockDefinition()
+		public override Dictionary<Vector3I, StructureEntry> GetMultiblockDefinition()
 		{
-			Dictionary<Vector3I, Type> def = new Dictionary<Vector3I, Type>();
+			if (IsDisposed)
+				return new Dictionary<Vector3I, StructureEntry>();
+
+			if(m_definition.Count == 0)
+				m_definition = WarpEngineDefinition();
+
+			return m_definition;
+		}
+
+		private Dictionary<Vector3I, StructureEntry> WarpEngineDefinition()
+		{
+			Dictionary<Vector3I, StructureEntry> def = new Dictionary<Vector3I, StructureEntry>();
 			if (IsDisposed)
 				return def;
 
-			def.Add(new Vector3I(0, 0, 0), typeof(ReactorEntity));
-			def.Add(new Vector3I(1, 0, 1), typeof(ReactorEntity));
-			def.Add(new Vector3I(-1, 0, 1), typeof(ReactorEntity));
-			def.Add(new Vector3I(0, 0, 2), typeof(ReactorEntity));
-			def.Add(new Vector3I(0, 2, 0), typeof(ReactorEntity));
-			def.Add(new Vector3I(1, 2, 1), typeof(ReactorEntity));
-			def.Add(new Vector3I(-1, 2, 1), typeof(ReactorEntity));
-			def.Add(new Vector3I(0, 2, 2), typeof(ReactorEntity));
+			StructureEntry beaconCore = new StructureEntry();
+			beaconCore.type = typeof(BeaconEntity);
 
-			//def.Add(new Vector3I(0, 1, 0), typeof(CubeBlockEntity));	//ConveyorTubeEntity
-			//def.Add(new Vector3I(1, 1, 1), typeof(CubeBlockEntity));	//ConveyorTubeEntity
-			//def.Add(new Vector3I(-1, 1, 1), typeof(CubeBlockEntity));	//ConveyorTubeEntity
-			//def.Add(new Vector3I(0, 1, 2), typeof(CubeBlockEntity));	//ConveyorTubeEntity
+			StructureEntry warpCoilBattery = new StructureEntry();
+			warpCoilBattery.type = typeof(BatteryBlockEntity);
 
-			//def.Add(new Vector3I(0, 0, 1), typeof(CubeBlockEntity));	//ConveyorEntity
+			StructureEntry coreLight = new StructureEntry();
+			coreLight.type = typeof(ReflectorLightEntity);
 
-			def.Add(new Vector3I(0, 1, 1), typeof(BeaconEntity));
+			def.Add(new Vector3I(0, 0, 0), beaconCore);
+
+			def.Add(new Vector3I(0, -1, -1), warpCoilBattery);
+			def.Add(new Vector3I(1, -1, 0), warpCoilBattery);
+			def.Add(new Vector3I(-1, -1, 0), warpCoilBattery);
+			def.Add(new Vector3I(0, -1, 1), warpCoilBattery);
+			def.Add(new Vector3I(0, 1, -1), warpCoilBattery);
+			def.Add(new Vector3I(1, 1, 0), warpCoilBattery);
+			def.Add(new Vector3I(-1, 1, 0), warpCoilBattery);
+			def.Add(new Vector3I(0, 1, 1), warpCoilBattery);
+
+			def.Add(new Vector3I(0, 0, -1), coreLight);
+			def.Add(new Vector3I(1, 0, 0), coreLight);
+			def.Add(new Vector3I(-1, 0, 0), coreLight);
+			def.Add(new Vector3I(0, 0, 1), coreLight);
+			def.Add(new Vector3I(0, -1, 0), coreLight);
 
 			return def;
+		}
+
+		private void RestoreBeacon()
+		{
+			Beacon.CustomName = m_oldBeaconName;
+			Beacon.BroadcastRadius = m_oldBeaconBroadcastRadius;
+		}
+
+		private void RestoreBatteries()
+		{
+			if (!m_isPowerSetup)
+				return;
+
+			foreach (CubeBlockEntity cubeBlock in Blocks)
+			{
+				if (cubeBlock.IsDisposed)
+					continue;
+
+				if (cubeBlock is BatteryBlockEntity)
+				{
+					BatteryBlockEntity battery = (BatteryBlockEntity)cubeBlock;
+					battery.MaxStoredPower = 1;
+					battery.RequiredPowerInput = 4;
+					battery.MaxPowerOutput = 4;
+					battery.CurrentStoredPower = Math.Min(battery.CurrentStoredPower, battery.MaxStoredPower);
+				}
+			}
+
+			m_isPowerSetup = false;
+		}
+
+		private void SetupBatteries()
+		{
+			if (m_isPowerSetup)
+				return;
+
+			foreach (CubeBlockEntity cubeBlock in Blocks)
+			{
+				if (cubeBlock is BatteryBlockEntity)
+				{
+					BatteryBlockEntity battery = (BatteryBlockEntity)cubeBlock;
+					battery.MaxStoredPower = 100;
+					battery.RequiredPowerInput = 40;
+					battery.MaxPowerOutput = 0.001f;
+				}
+			}
+
+			m_isPowerSetup = true;
+		}
+
+		private void DoRadiationDamage()
+		{
+			List<CharacterEntity> characters = SectorObjectManager.Instance.GetTypedInternalData<CharacterEntity>();
+
+			//TODO - Check if this is accurate at all for calculating the beacon's actual location
+			//The parent's position might not be at cubegrid 0,0,0 and might be at center of mass which is going to be hard to calculate
+			Vector3I beaconBlockPos = Beacon.Min;
+			Matrix matrix = Parent.PositionAndOrientation.GetMatrix();
+			Matrix orientation = matrix.GetOrientation();
+			Vector3 rotatedBlockPos = Vector3.Transform((Vector3)beaconBlockPos * 2.5f, orientation);
+			Vector3 beaconPos = rotatedBlockPos + Parent.Position;
+
+			foreach (CharacterEntity character in characters)
+			{
+				double distance = Vector3.Distance(character.Position, beaconPos);
+				if (distance < 10)
+				{
+					double damage = m_timeSinceLastUpdate.TotalSeconds * (10.0 - distance);
+					character.Health = character.Health - (float)damage;
+				}
+			}
 		}
 
 		public void Update()
@@ -216,15 +300,11 @@ namespace WarpDrivePlugin
 
 			try
 			{
-				try
-				{
-					if (!this.IsFunctional)
-						return;
-				}
-				catch
-				{
+				if (!IsFunctional)
 					return;
-				}
+
+				SetupBatteries();
+				DoRadiationDamage();
 
 				m_timeSinceLastUpdate = DateTime.Now - m_lastUpdate;
 				m_lastUpdate = DateTime.Now;
@@ -305,35 +385,33 @@ namespace WarpDrivePlugin
 			{
 				m_isStartingWarp = false;
 
+				//if (SandboxGameAssemblyWrapper.IsDebugging)
+					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is attempting to warp ...");
+
 				if (!CanWarp)
 					return;
 				if (IsPlayerInCockpit())
 					return;
 
-				if (SandboxGameAssemblyWrapper.IsDebugging)
-					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is warping using " + WarpFuel.ToString() + " fuel!");
+				//if (SandboxGameAssemblyWrapper.IsDebugging)
+					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is warping!");
 
 				m_isWarping = true;
 
-				//Consume the fuel
-				float fuelRequired = WarpFuel;
-				float totalFuelRemoved = 0;
-				foreach (InventoryItemEntity fuelItem in FuelItems)
+				//Consume the power
+				List<BatteryBlockEntity> warpCoils = BatteryBlocks;
+				float dividedPower = PowerRequired / (warpCoils.Count);
+				foreach (CubeBlockEntity cubeBlock in Blocks)
 				{
-					if (fuelItem.TotalMass > (fuelRequired - totalFuelRemoved))
+					if (cubeBlock is BatteryBlockEntity)
 					{
-						fuelItem.Amount -= (fuelRequired - totalFuelRemoved);
-						totalFuelRemoved = fuelRequired;
+						BatteryBlockEntity battery = (BatteryBlockEntity)cubeBlock;
+						battery.CurrentStoredPower -= dividedPower;
 					}
-					else
-					{
-						totalFuelRemoved += fuelItem.TotalMass;
-						fuelItem.Amount = 0;
-					}
-
-					if (totalFuelRemoved >= fuelRequired)
-						break;
 				}
+
+				//if (SandboxGameAssemblyWrapper.IsDebugging)
+					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' consumed " + PowerRequired.ToString() + "MJ of power!");
 
 				//Set the ship's max speed
 				Parent.MaxLinearVelocity = 100 * Core._SpeedFactor;
@@ -347,7 +425,7 @@ namespace WarpDrivePlugin
 				Beacon.CustomName = Core._BeaconText;
 				Beacon.BroadcastRadius = Core._BeaconRange;
 
-				if (SandboxGameAssemblyWrapper.IsDebugging)
+				//if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is accelerating to warp speed!");
 			}
 			catch (Exception ex)
@@ -409,10 +487,9 @@ namespace WarpDrivePlugin
 					m_isSpeedingUp = false;
 					m_isSlowingDown = false;
 
-					Parent.MaxLinearVelocity = (float)104.7;
+					Parent.MaxLinearVelocity = (float)104.375;
 
-					Beacon.CustomName = m_oldBeaconName;
-					Beacon.BroadcastRadius = m_oldBeaconBroadcastRadius;
+					RestoreBeacon();
 				}
 				else
 				{
@@ -441,7 +518,7 @@ namespace WarpDrivePlugin
 						CockpitEntity cockpit = (CockpitEntity)cubeBlock;
 						if (cockpit.Pilot != null && !cockpit.IsPassengerSeat)
 						{
-							if (SandboxGameAssemblyWrapper.IsDebugging)
+							//if (SandboxGameAssemblyWrapper.IsDebugging)
 								LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' cannot warp, player '" + cockpit.Pilot.DisplayName + "' is in a cockpit!");
 
 							isPlayerInCockpit = true;
