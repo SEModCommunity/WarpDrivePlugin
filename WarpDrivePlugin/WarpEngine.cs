@@ -28,6 +28,7 @@ namespace WarpDrivePlugin
 		private bool m_isSlowingDown;
 		private bool m_isDisposed;
 		private bool m_isPowerSetup;
+		private bool m_lightMode;
 
 		private float m_energyRequired;
 		private float m_accelerationFactor;
@@ -62,6 +63,7 @@ namespace WarpDrivePlugin
 			m_isSlowingDown = false;
 			m_isDisposed = false;
 			m_isPowerSetup = false;
+			m_lightMode = false;
 
 			m_accelerationFactor = 2;
 
@@ -164,6 +166,24 @@ namespace WarpDrivePlugin
 			}
 		}
 
+		protected List<ReflectorLightEntity> Lights
+		{
+			get
+			{
+				List<ReflectorLightEntity> list = new List<ReflectorLightEntity>();
+				foreach (CubeBlockEntity cubeBlock in Blocks)
+				{
+					if (cubeBlock is ReflectorLightEntity)
+					{
+						ReflectorLightEntity light = (ReflectorLightEntity)cubeBlock;
+						list.Add(light);
+					}
+				}
+
+				return list;
+			}
+		}
+
 		#endregion
 
 		#region "Methods"
@@ -202,23 +222,113 @@ namespace WarpDrivePlugin
 			StructureEntry coreLight = new StructureEntry();
 			coreLight.type = typeof(ReflectorLightEntity);
 
+			StructureEntry conveyorTube = new StructureEntry();
+			conveyorTube.type = typeof(ConveyorTubeEntity);
+
+			StructureEntry conveyorBlock = new StructureEntry();
+			conveyorBlock.type = typeof(ConveyorBlockEntity);
+
+			StructureEntry mergeBlock = new StructureEntry();
+			mergeBlock.type = typeof(MergeBlockEntity);
+
 			def.Add(new Vector3I(0, 0, 0), beaconCore);
 
-			def.Add(new Vector3I(0, -1, -1), warpCoilBattery);
-			def.Add(new Vector3I(1, -1, 0), warpCoilBattery);
-			def.Add(new Vector3I(-1, -1, 0), warpCoilBattery);
-			def.Add(new Vector3I(0, -1, 1), warpCoilBattery);
-			def.Add(new Vector3I(0, 1, -1), warpCoilBattery);
-			def.Add(new Vector3I(1, 1, 0), warpCoilBattery);
-			def.Add(new Vector3I(-1, 1, 0), warpCoilBattery);
-			def.Add(new Vector3I(0, 1, 1), warpCoilBattery);
+			def.Add(new Vector3I(3, 1, 0), warpCoilBattery);
+			def.Add(new Vector3I(-3, 1, 0), warpCoilBattery);
+			def.Add(new Vector3I(0, 1, 3), warpCoilBattery);
+			def.Add(new Vector3I(0, 1, -3), warpCoilBattery);
 
-			def.Add(new Vector3I(0, 0, -1), coreLight);
-			def.Add(new Vector3I(1, 0, 0), coreLight);
-			def.Add(new Vector3I(-1, 0, 0), coreLight);
-			def.Add(new Vector3I(0, 0, 1), coreLight);
-			def.Add(new Vector3I(0, -1, 0), coreLight);
+			//Lower lights
+			def.Add(new Vector3I(1, 0, 1), coreLight);
+			def.Add(new Vector3I(1, 0, -1), coreLight);
+			def.Add(new Vector3I(-1, 0, 1), coreLight);
+			def.Add(new Vector3I(-1, 0, -1), coreLight);
+			
+			//Upper lights
+			def.Add(new Vector3I(0, 2, 1), coreLight);
+			def.Add(new Vector3I(0, 2, 0), coreLight);
+			def.Add(new Vector3I(0, 2, -1), coreLight);
+			def.Add(new Vector3I(1, 2, 1), coreLight);
+			def.Add(new Vector3I(1, 2, 0), coreLight);
+			def.Add(new Vector3I(1, 2, -1), coreLight);
+			def.Add(new Vector3I(-1, 2, 1), coreLight);
+			def.Add(new Vector3I(-1, 2, 0), coreLight);
+			def.Add(new Vector3I(-1, 2, -1), coreLight);
 
+			/*
+			def.Add(new Vector3I(1, 0, 0), mergeBlock);
+			def.Add(new Vector3I(0, 0, 1), mergeBlock);
+			def.Add(new Vector3I(-1, 0, 0), mergeBlock);
+			def.Add(new Vector3I(0, 0, -1), mergeBlock);
+			*/
+
+			/*
+			def.Add(new Vector3I(2, 0, 0), conveyorBlock);
+			def.Add(new Vector3I(-2, 0, 0), conveyorBlock);
+			def.Add(new Vector3I(0, 0, 2), conveyorBlock);
+			def.Add(new Vector3I(0, 0, -2), conveyorBlock);
+			def.Add(new Vector3I(3, 0, 0), conveyorBlock);
+			def.Add(new Vector3I(-3, 0, 0), conveyorBlock);
+			def.Add(new Vector3I(0, 0, 3), conveyorBlock);
+			def.Add(new Vector3I(0, 0, -3), conveyorBlock);
+			def.Add(new Vector3I(2, 2, 0), conveyorBlock);
+			def.Add(new Vector3I(-2, 2, 0), conveyorBlock);
+			def.Add(new Vector3I(0, 2, 2), conveyorBlock);
+			def.Add(new Vector3I(0, 2, -2), conveyorBlock);
+			*/
+			/*
+			def.Add(new Vector3I(1, 0, 2), conveyorTube);
+			def.Add(new Vector3I(1, 2, 2), conveyorTube);
+			def.Add(new Vector3I(2, 0, 1), conveyorTube);
+			def.Add(new Vector3I(2, 2, 1), conveyorTube);
+			def.Add(new Vector3I(-1, 0, 2), conveyorTube);
+			def.Add(new Vector3I(-1, 2, 2), conveyorTube);
+			def.Add(new Vector3I(-2, 0, 1), conveyorTube);
+			def.Add(new Vector3I(-2, 2, 1), conveyorTube);
+			def.Add(new Vector3I(1, 0, -2), conveyorTube);
+			def.Add(new Vector3I(1, 2, -2), conveyorTube);
+			def.Add(new Vector3I(2, 0, -1), conveyorTube);
+			def.Add(new Vector3I(2, 2, -1), conveyorTube);
+			def.Add(new Vector3I(-1, 0, -2), conveyorTube);
+			def.Add(new Vector3I(-1, 2, -2), conveyorTube);
+			def.Add(new Vector3I(-2, 0, -1), conveyorTube);
+			def.Add(new Vector3I(-2, 2, -1), conveyorTube);
+
+			def.Add(new Vector3I(3, 0, 1), conveyorTube);
+			def.Add(new Vector3I(3, 2, 1), conveyorTube);
+			def.Add(new Vector3I(3, 0, -1), conveyorTube);
+			def.Add(new Vector3I(3, 2, -1), conveyorTube);
+			def.Add(new Vector3I(-3, 0, 1), conveyorTube);
+			def.Add(new Vector3I(-3, 2, 1), conveyorTube);
+			def.Add(new Vector3I(-3, 0, -1), conveyorTube);
+			def.Add(new Vector3I(-3, 2, -1), conveyorTube);
+			def.Add(new Vector3I(1, 0, 3), conveyorTube);
+			def.Add(new Vector3I(1, 2, 3), conveyorTube);
+			def.Add(new Vector3I(1, 0, -3), conveyorTube);
+			def.Add(new Vector3I(1, 2, -3), conveyorTube);
+			def.Add(new Vector3I(-1, 0, 3), conveyorTube);
+			def.Add(new Vector3I(-1, 2, 3), conveyorTube);
+			def.Add(new Vector3I(-1, 0, -3), conveyorTube);
+			def.Add(new Vector3I(-1, 2, -3), conveyorTube);
+
+			def.Add(new Vector3I(3, 2, 0), conveyorTube);
+			def.Add(new Vector3I(-3, 2, 0), conveyorTube);
+			def.Add(new Vector3I(0, 2, 3), conveyorTube);
+			def.Add(new Vector3I(0, 2, -3), conveyorTube);
+
+			def.Add(new Vector3I(2, 1, 0), conveyorTube);
+			def.Add(new Vector3I(-2, 1, 0), conveyorTube);
+			def.Add(new Vector3I(0, 1, 2), conveyorTube);
+			def.Add(new Vector3I(0, 1, -2), conveyorTube);
+			def.Add(new Vector3I(3, 1, 1), conveyorTube);
+			def.Add(new Vector3I(3, 1, -1), conveyorTube);
+			def.Add(new Vector3I(-3, 1, 1), conveyorTube);
+			def.Add(new Vector3I(-3, 1, -1), conveyorTube);
+			def.Add(new Vector3I(1, 1, 3), conveyorTube);
+			def.Add(new Vector3I(-1, 1, 3), conveyorTube);
+			def.Add(new Vector3I(1, 1, -3), conveyorTube);
+			def.Add(new Vector3I(-1, 1, -3), conveyorTube);
+			*/
 			return def;
 		}
 
@@ -253,43 +363,99 @@ namespace WarpDrivePlugin
 
 		private void SetupBatteries()
 		{
-			if (m_isPowerSetup)
-				return;
-
-			foreach (CubeBlockEntity cubeBlock in Blocks)
+			try
 			{
-				if (cubeBlock is BatteryBlockEntity)
+				if (m_isPowerSetup)
+					return;
+
+				if (SandboxGameAssemblyWrapper.IsDebugging)
+					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Setting up batteries on '" + Parent.Name + " ...");
+
+				if (BatteryBlocks.Count < 4)
+					throw new Exception("Some batteries are missing!");
+
+				foreach (BatteryBlockEntity battery in BatteryBlocks)
 				{
-					BatteryBlockEntity battery = (BatteryBlockEntity)cubeBlock;
 					battery.MaxStoredPower = 100;
 					battery.RequiredPowerInput = 40;
 					battery.MaxPowerOutput = 0.001f;
 				}
-			}
 
-			m_isPowerSetup = true;
+				m_isPowerSetup = true;
+			}
+			catch (Exception ex)
+			{
+				LogManager.GameLog.WriteLine(ex);
+			}
+		}
+
+		private void UpdateLights()
+		{
+			try
+			{
+				if (Lights.Count < 13)
+					throw new Exception("Some lights are missing!");
+
+				if (PowerLevel < PowerRequired)
+				{
+					if (!m_lightMode)
+					{
+						if (SandboxGameAssemblyWrapper.IsDebugging)
+							LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Updating lights on '" + Parent.Name + " to low-energy ...");
+
+						foreach (ReflectorLightEntity light in Lights)
+						{
+							light.Color = new Color(66, 108, 198);
+						}
+						m_lightMode = true;
+					}
+				}
+				else
+				{
+					if (m_lightMode)
+					{
+						if (SandboxGameAssemblyWrapper.IsDebugging)
+							LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Updating lights on '" + Parent.Name + " to high-energy ...");
+
+						foreach (ReflectorLightEntity light in Lights)
+						{
+							light.Color = new Color(198, 108, 66);
+						}
+						m_lightMode = false;
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				LogManager.GameLog.WriteLine(ex);
+			}
 		}
 
 		private void DoRadiationDamage()
 		{
-			List<CharacterEntity> characters = SectorObjectManager.Instance.GetTypedInternalData<CharacterEntity>();
-
-			//TODO - Check if this is accurate at all for calculating the beacon's actual location
-			//The parent's position might not be at cubegrid 0,0,0 and might be at center of mass which is going to be hard to calculate
-			Vector3I beaconBlockPos = Beacon.Min;
-			Matrix matrix = Parent.PositionAndOrientation.GetMatrix();
-			Matrix orientation = matrix.GetOrientation();
-			Vector3 rotatedBlockPos = Vector3.Transform((Vector3)beaconBlockPos * 2.5f, orientation);
-			Vector3 beaconPos = rotatedBlockPos + Parent.Position;
-
-			foreach (CharacterEntity character in characters)
+			try
 			{
-				double distance = Vector3.Distance(character.Position, beaconPos);
-				if (distance < 10)
+				List<CharacterEntity> characters = SectorObjectManager.Instance.GetTypedInternalData<CharacterEntity>();
+
+				Vector3I beaconBlockPos = Beacon.Min;
+				Matrix matrix = Parent.PositionAndOrientation.GetMatrix();
+				Matrix orientation = matrix.GetOrientation();
+				Vector3 rotatedBlockPos = Vector3.Transform((Vector3)beaconBlockPos * 2.5f, orientation);
+				Vector3 beaconPos = rotatedBlockPos + Parent.Position;
+
+				foreach (CharacterEntity character in characters)
 				{
-					double damage = m_timeSinceLastUpdate.TotalSeconds * (10.0 - distance);
-					character.Health = character.Health - (float)damage;
+					double distance = Vector3.Distance(character.Position, beaconPos);
+					if (distance < 13)
+					{
+						double damage = m_timeSinceLastUpdate.TotalSeconds * (13.0 - distance);
+						character.Health = character.Health - (float)damage;
+					}
 				}
+			}
+			catch (Exception ex)
+			{
+				LogManager.GameLog.WriteLine(ex);
 			}
 		}
 
@@ -303,11 +469,12 @@ namespace WarpDrivePlugin
 				if (!IsFunctional)
 					return;
 
-				SetupBatteries();
-				DoRadiationDamage();
-
 				m_timeSinceLastUpdate = DateTime.Now - m_lastUpdate;
 				m_lastUpdate = DateTime.Now;
+
+				SetupBatteries();
+				DoRadiationDamage();
+				UpdateLights();
 
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();

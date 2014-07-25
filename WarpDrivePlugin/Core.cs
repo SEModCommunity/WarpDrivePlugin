@@ -315,7 +315,7 @@ namespace WarpDrivePlugin
 			WarpEngine dummyEngine = new WarpEngine(null);
 			if (dummyEngine.IsDefinitionMatch(cubeBlock))
 			{
-				CreateWarpEngine(cubeBlock);
+				CreateWarpEngine(dummyEngine.AnchorBlock);
 			}
 		}
 
@@ -370,24 +370,35 @@ namespace WarpDrivePlugin
 
 		protected void CreateWarpEngine(CubeBlockEntity cubeBlock)
 		{
+			if (cubeBlock == null || cubeBlock.IsDisposed)
+				return;
+
 			AcquireMapLock();
 
 			CleanUpEngineMap();
 
 			CubeGridEntity cubeGrid = cubeBlock.Parent;
 
+			if (m_warpEngineMap.ContainsKey(cubeGrid))
+			{
+				ReleaseMapLock();
+				return;
+			}
+
 			WarpEngine warpEngine = new WarpEngine(cubeGrid);
+			if (!warpEngine.IsDefinitionMatch(cubeBlock))
+				return;
 			warpEngine.LoadBlocksFromAnchor(cubeBlock.Min);
 			if (warpEngine.Blocks.Count == 0)
 			{
 				ReleaseMapLock();
-				//LogManager.APILog.WriteLineAndConsole("Failed to create warp engine on cube grid '" + cubeGrid.Name + "'");
+				LogManager.APILog.WriteLineAndConsole("Failed to create warp engine on cube grid '" + cubeGrid.Name + "' with anchor at " + ((Vector3I)cubeBlock.Min).ToString());
 				return;
 			}
 
 			m_warpEngineMap.Add(cubeGrid, warpEngine);
 
-			LogManager.APILog.WriteLineAndConsole("Created warp engine on cube grid '" + cubeGrid.Name + "'");
+			LogManager.APILog.WriteLineAndConsole("Created warp engine on cube grid '" + cubeGrid.Name + "' with anchor at " + ((Vector3I)cubeBlock.Min).ToString());
 
 			ReleaseMapLock();
 		}
@@ -439,26 +450,22 @@ namespace WarpDrivePlugin
 			AcquireMapLock();
 
 			if(SandboxGameAssemblyWrapper.IsDebugging)
-				LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Scanning all entities for valid warp drives ...");
-			else
-				LogManager.APILog.WriteLine("WarpDrivePlugin - Scanning all entities for valid warp drives ...");
+				LogManager.APILog.WriteLine("WarpDrivePlugin - Scanning all cube grids for valid warp drives ...");
 
-			foreach (BaseEntity entity in SectorObjectManager.Instance.GetTypedInternalData<BaseEntity>())
+			foreach (CubeGridEntity cubeGrid in SectorObjectManager.Instance.GetTypedInternalData<CubeGridEntity>())
 			{
 				try
 				{
-					//Skip if not cube grid
-					if (!(entity is CubeGridEntity))
-						continue;
-
-					CubeGridEntity cubeGrid = (CubeGridEntity)entity;
-
 					//Skip if not large cube grid
 					if (cubeGrid.GridSizeEnum != MyCubeSize.Large)
 						continue;
 
 					//Skip if cube grid already has engine
 					if (m_warpEngineMap.ContainsKey(cubeGrid))
+						continue;
+
+					//Skip if cube grid is still loading
+					if (cubeGrid.IsLoading)
 						continue;
 
 					//Force a cube block refresh
@@ -469,9 +476,7 @@ namespace WarpDrivePlugin
 					List<Vector3I> matches = dummyEngine.GetDefinitionMatches(cubeGrid);
 					if (matches.Count > 0)
 					{
-						//If there was a match, create a new engine
-						CubeBlockEntity cubeBlock = cubeGrid.GetCubeBlock(matches[0]);
-						CreateWarpEngine(cubeBlock);
+						CreateWarpEngine(dummyEngine.AnchorBlock);
 					}
 				}
 				catch (Exception ex)
