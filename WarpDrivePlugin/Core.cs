@@ -64,8 +64,6 @@ namespace WarpDrivePlugin
 
 			m_lastFullScan = DateTime.Now;
 			m_lastCleanUp = DateTime.Now;
-
-			Console.WriteLine("WarpDrivePlugin '" + Id.ToString() + "' constructed!");
 		}
 
 		#endregion

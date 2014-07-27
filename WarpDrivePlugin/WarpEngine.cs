@@ -40,6 +40,7 @@ namespace WarpDrivePlugin
 		private DateTime m_lastUpdate;
 		private DateTime m_warpRequest;
 		private DateTime m_warpStart;
+		private DateTime m_lastRadiationDamage;
 		private TimeSpan m_timeSinceLastUpdate;
 		private TimeSpan m_timeSinceWarpRequest;
 		private TimeSpan m_timeSinceWarpStart;
@@ -55,6 +56,7 @@ namespace WarpDrivePlugin
 
 			m_lastPowerCheck = DateTime.Now;
 			m_lastUpdate = DateTime.Now;
+			m_lastRadiationDamage = DateTime.Now;
 
 			m_isStartingWarp = false;
 			m_isWarping = false;
@@ -405,7 +407,7 @@ namespace WarpDrivePlugin
 
 						foreach (ReflectorLightEntity light in Lights)
 						{
-							light.Color = new Color(66, 108, 198);
+							light.Color = new Color(198, 108, 66);
 						}
 						m_lightMode = true;
 					}
@@ -419,7 +421,7 @@ namespace WarpDrivePlugin
 
 						foreach (ReflectorLightEntity light in Lights)
 						{
-							light.Color = new Color(198, 108, 66);
+							light.Color = new Color(66, 108, 198);
 						}
 						m_lightMode = false;
 					}
@@ -435,6 +437,12 @@ namespace WarpDrivePlugin
 		{
 			try
 			{
+				TimeSpan timeSinceRadiationDamage = DateTime.Now - m_lastRadiationDamage;
+				if (timeSinceRadiationDamage.TotalMilliseconds < 1000)
+					return;
+
+				m_lastRadiationDamage = DateTime.Now;
+
 				List<CharacterEntity> characters = SectorObjectManager.Instance.GetTypedInternalData<CharacterEntity>();
 
 				Vector3I beaconBlockPos = Beacon.Min;
