@@ -491,10 +491,19 @@ namespace WarpDrivePlugin
 				{
 					m_timeSinceWarpRequest = DateTime.Now - m_warpRequest;
 
+					Beacon.CustomName = "Warping in " + Math.Round(Core._WarpDelay - m_timeSinceWarpRequest.TotalSeconds, 0).ToString() + " ...";
+					Beacon.BroadcastRadius = 100;
+					Parent.IsDampenersEnabled = false;
+
 					if (m_timeSinceWarpRequest.TotalMilliseconds > Core._WarpDelay * 1000)
 					{
 						Warp();
 					}
+				}
+				else
+				{
+					Beacon.CustomName = Core._BeaconText;
+					Beacon.BroadcastRadius = Core._BeaconRange;
 				}
 
 				if (m_isWarping)
@@ -560,7 +569,7 @@ namespace WarpDrivePlugin
 			{
 				m_isStartingWarp = false;
 
-				//if (SandboxGameAssemblyWrapper.IsDebugging)
+				if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is attempting to warp ...");
 
 				if (!CanWarp)
@@ -568,7 +577,7 @@ namespace WarpDrivePlugin
 				if (IsPlayerInCockpit())
 					return;
 
-				//if (SandboxGameAssemblyWrapper.IsDebugging)
+				if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is warping!");
 
 				m_isWarping = true;
@@ -585,22 +594,20 @@ namespace WarpDrivePlugin
 					}
 				}
 
-				//if (SandboxGameAssemblyWrapper.IsDebugging)
+				if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' consumed " + PowerRequired.ToString() + "MJ of power!");
 
 				//Set the ship's max speed
 				Parent.MaxLinearVelocity = 100 * Core._SpeedFactor;
+				Parent.IsDampenersEnabled = false;
 
 				//Start the acceleration procedure
 				m_isSpeedingUp = true;
 
-				m_oldBeaconName = Beacon.CustomName;
-				m_oldBeaconBroadcastRadius = Beacon.BroadcastRadius;
-
-				Beacon.CustomName = Core._BeaconText;
+				Beacon.CustomName = "Warping!";
 				Beacon.BroadcastRadius = Core._BeaconRange;
 
-				//if (SandboxGameAssemblyWrapper.IsDebugging)
+				if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is accelerating to warp speed!");
 			}
 			catch (Exception ex)
@@ -663,8 +670,10 @@ namespace WarpDrivePlugin
 					m_isSlowingDown = false;
 
 					Parent.MaxLinearVelocity = (float)104.375;
+					Parent.IsDampenersEnabled = true;
 
-					RestoreBeacon();
+					Beacon.CustomName = Core._BeaconText;
+					Beacon.BroadcastRadius = Core._BeaconRange;
 				}
 				else
 				{
@@ -693,7 +702,7 @@ namespace WarpDrivePlugin
 						CockpitEntity cockpit = (CockpitEntity)cubeBlock;
 						if (cockpit.Pilot != null && !cockpit.IsPassengerSeat)
 						{
-							//if (SandboxGameAssemblyWrapper.IsDebugging)
+							if (SandboxGameAssemblyWrapper.IsDebugging)
 								LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' cannot warp, player '" + cockpit.Pilot.DisplayName + "' is in a cockpit!");
 
 							isPlayerInCockpit = true;
