@@ -19,15 +19,17 @@ using SEModAPIInternal.API.Entity.Sector.SectorObject.CubeGrid.CubeBlock;
 using SEModAPIInternal.Support;
 
 using VRageMath;
+using VRage;
 
 namespace WarpDrivePlugin
 {
-	public class Core : PluginBase, ICubeBlockEventHandler
+	public class Core : PluginBase
 	{
 		#region "Attributes"
 
 		private bool m_isActive;
-		private bool m_isEngineMapLocked;
+		private FastResourceLock m_resourceLock;
+		private Thread m_mainUpdateLoop;
 
 		private static float m_baseFuel;
 		private static float m_fuelRate;
@@ -39,8 +41,6 @@ namespace WarpDrivePlugin
 		private static float m_warpDelay;
 
 		protected Dictionary<CubeGridEntity, WarpEngine> m_warpEngineMap;
-		protected DateTime m_lastFullScan;
-		protected DateTime m_lastCleanUp;
 
 		#endregion
 
@@ -51,7 +51,8 @@ namespace WarpDrivePlugin
 			m_warpEngineMap = new Dictionary<CubeGridEntity, WarpEngine>();
 
 			m_isActive = false;
-			m_isEngineMapLocked = false;
+			m_resourceLock = new FastResourceLock();
+			m_mainUpdateLoop = new Thread(MainUpdate);
 
 			m_baseFuel = 25;
 			m_fuelRate = 1;
@@ -61,9 +62,6 @@ namespace WarpDrivePlugin
 			m_beaconText = "Warp Drive";
 			m_speedThreshold = 15;
 			m_warpDelay = 10;
-
-			m_lastFullScan = DateTime.Now;
-			m_lastCleanUp = DateTime.Now;
 		}
 
 		#endregion
@@ -215,56 +213,29 @@ namespace WarpDrivePlugin
 
 		public override void Init()
 		{
+			m_resourceLock.AcquireExclusive();
+
 			m_warpEngineMap.Clear();
-			m_lastFullScan = DateTime.Now;
-			m_lastCleanUp = DateTime.Now;
 			m_isActive = true;
+
+			m_resourceLock.ReleaseExclusive();
 
 			Console.WriteLine("WarpDrivePlugin '" + Id.ToString() + "' initialized!");
 		}
 
 		public override void Update()
 		{
-			if (!m_isActive)
-				return;
-
-			AcquireMapLock();
-			if (!m_isEngineMapLocked)
-				return;
-
-			foreach (WarpEngine warpEngine in m_warpEngineMap.Values)
+			if (!m_mainUpdateLoop.IsAlive)
 			{
-				warpEngine.Update();
-
-				//Check if ship is going fast enough to warp
-				Vector3 velocity = warpEngine.Parent.LinearVelocity;
-				float speed = velocity.Length();
-				if (!warpEngine.IsWarping && speed > m_speedThreshold && speed < 0.95 * m_speedFactor * 100)
-				{
-					if (warpEngine.CanWarp)
-						warpEngine.StartWarp();
-				}
+				m_mainUpdateLoop.Start();
 			}
-			ReleaseMapLock();
-
-			TimeSpan timeSinceLastFullScan = DateTime.Now - m_lastFullScan;
-			if (timeSinceLastFullScan.TotalMilliseconds > 30000)
-			{
-				m_lastFullScan = DateTime.Now;
-
-				//Run cleanup
-				CleanUpEngineMap();
-
-				//Queue up a full scan
-				Action action = FullScan;
-				SandboxGameAssemblyWrapper.Instance.EnqueueMainGameAction(action);
-			}
-
 		}
 
 		public override void Shutdown()
 		{
-			AcquireMapLock();
+			m_mainUpdateLoop.Interrupt();
+
+			m_resourceLock.AcquireExclusive();
 
 			foreach (WarpEngine warpEngine in m_warpEngineMap.Values)
 			{
@@ -276,84 +247,86 @@ namespace WarpDrivePlugin
 
 			Console.WriteLine("WarpDrivePlugin '" + Id.ToString() + "' is shut down!");
 
-			ReleaseMapLock();
-		}
-
-		public void OnCubeBlockCreated(CubeBlockEntity cubeBlock)
-		{
-			if (!m_isActive)
-				return;
-
-			if (cubeBlock == null || cubeBlock.IsDisposed)
-				return;
-
-			CubeGridEntity cubeGrid = cubeBlock.Parent;
-
-			//Do some data validating
-			if (cubeGrid == null)
-				return;
-			if (cubeGrid.IsDisposed)
-				return;
-			if (cubeGrid.GridSizeEnum != MyCubeSize.Large)
-				return;
-
-			//Check if the map already has an entry for this cube grid
-			if (m_warpEngineMap.ContainsKey(cubeGrid))
-			{
-				CleanUpEngineMap();
-
-				if (m_warpEngineMap.ContainsKey(cubeGrid))
-				{
-					ReleaseMapLock();
-					return;
-				}
-			}
-
-			//Search for multiblock matches
-			WarpEngine dummyEngine = new WarpEngine(null);
-			if (dummyEngine.IsDefinitionMatch(cubeBlock))
-			{
-				CreateWarpEngine(dummyEngine.AnchorBlock);
-			}
-		}
-
-		public void OnCubeBlockDeleted(CubeBlockEntity cubeBlock)
-		{
-			if (!m_isActive)
-				return;
-
-			if (cubeBlock == null)
-				return;
-
-			CleanUpEngineMap();
+			m_resourceLock.ReleaseExclusive();
 		}
 
 		#endregion
 
-		private void AcquireMapLock()
+		protected void MainUpdate()
 		{
-			DateTime timeOfRequest = DateTime.Now;
-			while (m_isEngineMapLocked)
+			DateTime lastFullScan = DateTime.Now;
+			DateTime lastMainLoop = DateTime.Now;
+			TimeSpan timeSinceLastMainLoop = DateTime.Now - lastMainLoop;
+			float averageMainLoopInterval = 0;
+			float averageMainLoopTime = 0;
+			DateTime lastProfilingMessage = DateTime.Now;
+			TimeSpan timeSinceLastProfilingMessage = DateTime.Now - lastProfilingMessage;
+
+			while (m_isActive)
 			{
-				Thread.Sleep(15);
+				try
+				{
+					DateTime mainLoopStart = DateTime.Now;
 
-				TimeSpan timeSinceRequest = DateTime.Now - timeOfRequest;
-				if (timeSinceRequest.TotalMilliseconds > 100)
-					return;
+					m_resourceLock.AcquireExclusive();
+
+					foreach (WarpEngine warpEngine in m_warpEngineMap.Values)
+					{
+						warpEngine.Update();
+
+						//Check if ship is going fast enough to warp
+						Vector3 velocity = warpEngine.Parent.LinearVelocity;
+						float speed = velocity.Length();
+						if (!warpEngine.IsWarping && speed > m_speedThreshold && speed < 0.95 * m_speedFactor * 100)
+						{
+							if (warpEngine.CanWarp)
+								warpEngine.StartWarp();
+						}
+					}
+
+					m_resourceLock.ReleaseExclusive();
+
+					TimeSpan timeSinceLastFullScan = DateTime.Now - lastFullScan;
+					if (timeSinceLastFullScan.TotalSeconds > 30)
+					{
+						lastFullScan = DateTime.Now;
+
+						//Run cleanup
+						CleanUpEngineMap();
+
+						//Run a full scan
+						FullScan();
+					}
+
+					//Performance profiling
+					timeSinceLastMainLoop = DateTime.Now - lastMainLoop;
+					lastMainLoop = DateTime.Now;
+					TimeSpan mainLoopRunTime = DateTime.Now - mainLoopStart;
+					averageMainLoopInterval = (averageMainLoopInterval + (float)timeSinceLastMainLoop.TotalMilliseconds) / 2;
+					averageMainLoopTime = (averageMainLoopTime + (float)mainLoopRunTime.TotalMilliseconds) / 2;
+					timeSinceLastProfilingMessage = DateTime.Now - lastProfilingMessage;
+					if (timeSinceLastProfilingMessage.TotalSeconds > 10)
+					{
+						lastProfilingMessage = DateTime.Now;
+
+						LogManager.APILog.WriteLine("WarpDrivePlugin - Average main loop interval: " + Math.Round(averageMainLoopInterval, 2).ToString() + "ms");
+						LogManager.APILog.WriteLine("WarpDrivePlugin - Average main loop time: " + Math.Round(averageMainLoopTime, 2).ToString() + "ms");
+					}
+
+					//Pause between loops
+					int nextSleepTime = Math.Min(500, Math.Max(100, 200 + (200 - (int)timeSinceLastMainLoop.TotalMilliseconds) / 2));
+					Thread.Sleep(nextSleepTime);
+				}
+				catch (Exception ex)
+				{
+					LogManager.GameLog.WriteLine(ex);
+					Thread.Sleep(5000);
+				}
 			}
-
-			m_isEngineMapLocked = true;
-		}
-
-		private void ReleaseMapLock()
-		{
-			m_isEngineMapLocked = false;
 		}
 
 		protected void RemoveWarpEngine(CubeGridEntity cubeGrid)
 		{
-			AcquireMapLock();
-
 			if (!m_warpEngineMap.ContainsKey(cubeGrid))
 				return;
 
@@ -362,8 +335,6 @@ namespace WarpDrivePlugin
 			m_warpEngineMap.Remove(engine.Parent);
 
 			engine.Dispose();
-
-			ReleaseMapLock();
 		}
 
 		protected void CreateWarpEngine(CubeBlockEntity cubeBlock)
@@ -371,17 +342,10 @@ namespace WarpDrivePlugin
 			if (cubeBlock == null || cubeBlock.IsDisposed)
 				return;
 
-			AcquireMapLock();
-
-			CleanUpEngineMap();
-
 			CubeGridEntity cubeGrid = cubeBlock.Parent;
 
 			if (m_warpEngineMap.ContainsKey(cubeGrid))
-			{
-				ReleaseMapLock();
 				return;
-			}
 
 			WarpEngine warpEngine = new WarpEngine(cubeGrid);
 			if (!warpEngine.IsDefinitionMatch(cubeBlock))
@@ -389,7 +353,6 @@ namespace WarpDrivePlugin
 			warpEngine.LoadBlocksFromAnchor(cubeBlock.Min);
 			if (warpEngine.Blocks.Count == 0)
 			{
-				ReleaseMapLock();
 				LogManager.APILog.WriteLineAndConsole("Failed to create warp engine on cube grid '" + cubeGrid.Name + "' with anchor at " + ((Vector3I)cubeBlock.Min).ToString());
 				return;
 			}
@@ -397,8 +360,6 @@ namespace WarpDrivePlugin
 			m_warpEngineMap.Add(cubeGrid, warpEngine);
 
 			LogManager.APILog.WriteLineAndConsole("Created warp engine on cube grid '" + cubeGrid.Name + "' with anchor at " + ((Vector3I)cubeBlock.Min).ToString());
-
-			ReleaseMapLock();
 		}
 
 		protected bool CheckEngineForRemoval(WarpEngine engine)
@@ -419,15 +380,10 @@ namespace WarpDrivePlugin
 
 		protected void CleanUpEngineMap()
 		{
+			m_resourceLock.AcquireExclusive();
+
 			try
 			{
-				//Allow cleanup to only run once every 10 seconds
-				TimeSpan timeSinceLastCleanup = DateTime.Now - m_lastCleanUp;
-				if (timeSinceLastCleanup.TotalSeconds < 10)
-					return;
-				m_lastCleanUp = DateTime.Now;
-
-				AcquireMapLock();
 				foreach (WarpEngine engine in m_warpEngineMap.Values)
 				{
 					if (CheckEngineForRemoval(engine))
@@ -435,19 +391,20 @@ namespace WarpDrivePlugin
 						RemoveWarpEngine(engine.Parent);
 					}
 				}
-				ReleaseMapLock();
 			}
 			catch (Exception ex)
 			{
 				LogManager.GameLog.WriteLine(ex);
 			}
+
+			m_resourceLock.ReleaseExclusive();
 		}
 
 		protected void FullScan()
 		{
-			AcquireMapLock();
+			m_resourceLock.AcquireExclusive();
 
-			if(SandboxGameAssemblyWrapper.IsDebugging)
+			if (SandboxGameAssemblyWrapper.IsDebugging)
 				LogManager.APILog.WriteLine("WarpDrivePlugin - Scanning all cube grids for valid warp drives ...");
 
 			foreach (CubeGridEntity cubeGrid in SectorObjectManager.Instance.GetTypedInternalData<CubeGridEntity>())
@@ -483,7 +440,7 @@ namespace WarpDrivePlugin
 				}
 			}
 
-			ReleaseMapLock();
+			m_resourceLock.ReleaseExclusive();
 		}
 
 		#endregion
