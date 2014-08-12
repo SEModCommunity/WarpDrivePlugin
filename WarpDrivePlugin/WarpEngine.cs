@@ -32,6 +32,7 @@ namespace WarpDrivePlugin
 
 		private float m_energyRequired;
 		private float m_accelerationFactor;
+		private Vector3 m_warpStartPosition;
 
 		private string m_oldBeaconName;
 		private float m_oldBeaconBroadcastRadius;
@@ -129,6 +130,15 @@ namespace WarpDrivePlugin
 		public bool IsDisposed
 		{
 			get { return m_isDisposed; }
+		}
+
+		public float WarpDistance
+		{
+			get
+			{
+				float distance = Core._SpeedFactor * 100 * Core._Duration;
+				return distance;
+			}
 		}
 
 		protected BeaconEntity Beacon
@@ -511,8 +521,10 @@ namespace WarpDrivePlugin
 					if (m_isAtWarpSpeed)
 					{
 						m_timeSinceWarpStart = DateTime.Now - m_warpStart;
+						float distanceWarped = Vector3.Distance(m_warpStartPosition, Parent.Position);
 
-						if (speed > (0.95 * Core._SpeedFactor * 100) && m_timeSinceWarpStart.TotalMilliseconds > Core._Duration * 1000)
+						//Slow down if at speed, elapsed time is greater than duration, and warp distance is at least met
+						if (speed > (0.95 * Core._SpeedFactor * 100) && m_timeSinceWarpStart.TotalMilliseconds > Core._Duration * 1000 && distanceWarped > WarpDistance)
 						{
 							m_isSpeedingUp = false;
 							m_isAtWarpSpeed = false;
@@ -635,6 +647,8 @@ namespace WarpDrivePlugin
 					m_isSpeedingUp = false;
 					m_isSlowingDown = false;
 					m_warpStart = DateTime.Now;
+
+					m_warpStartPosition = Parent.Position;
 				}
 				else
 				{
