@@ -29,6 +29,7 @@ namespace WarpDrivePlugin
 		private bool m_isDisposed;
 		private bool m_isPowerSetup;
 		private bool m_lightMode;
+		private bool m_isCountdownRunning;
 
 		private float m_energyRequired;
 		private float m_accelerationFactor;
@@ -67,6 +68,7 @@ namespace WarpDrivePlugin
 			m_isDisposed = false;
 			m_isPowerSetup = false;
 			m_lightMode = false;
+			m_isCountdownRunning = false;
 
 			m_accelerationFactor = 2;
 
@@ -397,7 +399,7 @@ namespace WarpDrivePlugin
 			}
 			catch (Exception ex)
 			{
-				LogManager.GameLog.WriteLine(ex);
+				LogManager.ErrorLog.WriteLine(ex);
 			}
 		}
 
@@ -439,7 +441,7 @@ namespace WarpDrivePlugin
 			}
 			catch (Exception ex)
 			{
-				LogManager.GameLog.WriteLine(ex);
+				LogManager.ErrorLog.WriteLine(ex);
 			}
 		}
 
@@ -473,7 +475,7 @@ namespace WarpDrivePlugin
 			}
 			catch (Exception ex)
 			{
-				LogManager.GameLog.WriteLine(ex);
+				LogManager.ErrorLog.WriteLine(ex);
 			}
 		}
 
@@ -497,8 +499,9 @@ namespace WarpDrivePlugin
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
 
-				if (m_isStartingWarp && speed > Core._SpeedThreshold)
+				if (m_isStartingWarp && speed > Core._SpeedThreshold && !IsPlayerInCockpit())
 				{
+					m_isCountdownRunning = true;
 					m_timeSinceWarpRequest = DateTime.Now - m_warpRequest;
 
 					Beacon.CustomName = "Warping in " + Math.Round(Core._WarpDelay - m_timeSinceWarpRequest.TotalSeconds, 0).ToString() + " ...";
@@ -512,6 +515,7 @@ namespace WarpDrivePlugin
 				}
 				else
 				{
+					m_isCountdownRunning = false;
 					Beacon.CustomName = Core._BeaconText;
 					Beacon.BroadcastRadius = Core._BeaconRange;
 				}
@@ -559,7 +563,7 @@ namespace WarpDrivePlugin
 			}
 			catch (Exception ex)
 			{
-				LogManager.GameLog.WriteLine(ex);
+				LogManager.ErrorLog.WriteLine(ex);
 			}
 		}
 
@@ -568,7 +572,7 @@ namespace WarpDrivePlugin
 			if (IsDisposed)
 				return;
 
-			if (m_isStartingWarp)
+			if (m_isStartingWarp && m_isCountdownRunning)
 				return;
 
 			m_isStartingWarp = true;
@@ -583,11 +587,6 @@ namespace WarpDrivePlugin
 
 				if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is attempting to warp ...");
-
-				if (!CanWarp)
-					return;
-				if (IsPlayerInCockpit())
-					return;
 
 				if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is warping!");
@@ -625,7 +624,7 @@ namespace WarpDrivePlugin
 			catch (Exception ex)
 			{
 				LogManager.APILog.WriteLineAndConsole("Error while starting warp");
-				LogManager.GameLog.WriteLine(ex);
+				LogManager.ErrorLog.WriteLine(ex);
 			}
 		}
 
@@ -660,7 +659,7 @@ namespace WarpDrivePlugin
 			catch (Exception ex)
 			{
 				LogManager.APILog.WriteLineAndConsole("Error while speeding up to warp");
-				LogManager.GameLog.WriteLine(ex);
+				LogManager.ErrorLog.WriteLine(ex);
 			}
 		}
 
@@ -699,7 +698,7 @@ namespace WarpDrivePlugin
 			catch (Exception ex)
 			{
 				LogManager.APILog.WriteLineAndConsole("Error while slowing down from warp");
-				LogManager.GameLog.WriteLine(ex);
+				LogManager.ErrorLog.WriteLine(ex);
 			}
 		}
 
@@ -727,7 +726,7 @@ namespace WarpDrivePlugin
 			}
 			catch (Exception ex)
 			{
-				LogManager.GameLog.WriteLine(ex);
+				LogManager.ErrorLog.WriteLine(ex);
 			}
 
 			return isPlayerInCockpit;

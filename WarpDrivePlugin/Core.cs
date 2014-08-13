@@ -298,28 +298,32 @@ namespace WarpDrivePlugin
 						FullScan();
 					}
 
-					//Performance profiling
 					timeSinceLastMainLoop = DateTime.Now - lastMainLoop;
 					lastMainLoop = DateTime.Now;
-					TimeSpan mainLoopRunTime = DateTime.Now - mainLoopStart;
-					averageMainLoopInterval = (averageMainLoopInterval + (float)timeSinceLastMainLoop.TotalMilliseconds) / 2;
-					averageMainLoopTime = (averageMainLoopTime + (float)mainLoopRunTime.TotalMilliseconds) / 2;
-					timeSinceLastProfilingMessage = DateTime.Now - lastProfilingMessage;
-					if (timeSinceLastProfilingMessage.TotalSeconds > 10)
-					{
-						lastProfilingMessage = DateTime.Now;
 
-						LogManager.APILog.WriteLine("WarpDrivePlugin - Average main loop interval: " + Math.Round(averageMainLoopInterval, 2).ToString() + "ms");
-						LogManager.APILog.WriteLine("WarpDrivePlugin - Average main loop time: " + Math.Round(averageMainLoopTime, 2).ToString() + "ms");
+					//Performance profiling
+					if (SandboxGameAssemblyWrapper.IsDebugging)
+					{
+						TimeSpan mainLoopRunTime = DateTime.Now - mainLoopStart;
+						averageMainLoopInterval = (averageMainLoopInterval + (float)timeSinceLastMainLoop.TotalMilliseconds) / 2;
+						averageMainLoopTime = (averageMainLoopTime + (float)mainLoopRunTime.TotalMilliseconds) / 2;
+						timeSinceLastProfilingMessage = DateTime.Now - lastProfilingMessage;
+						if (timeSinceLastProfilingMessage.TotalSeconds > 60)
+						{
+							lastProfilingMessage = DateTime.Now;
+
+							LogManager.APILog.WriteLine("WarpDrivePlugin - Average main loop interval: " + Math.Round(averageMainLoopInterval, 2).ToString() + "ms");
+							LogManager.APILog.WriteLine("WarpDrivePlugin - Average main loop time: " + Math.Round(averageMainLoopTime, 2).ToString() + "ms");
+						}
 					}
 
 					//Pause between loops
-					int nextSleepTime = Math.Min(500, Math.Max(100, 200 + (200 - (int)timeSinceLastMainLoop.TotalMilliseconds) / 2));
+					int nextSleepTime = Math.Min(500, Math.Max(100, 100 + (100 - (int)timeSinceLastMainLoop.TotalMilliseconds) / 2));
 					Thread.Sleep(nextSleepTime);
 				}
 				catch (Exception ex)
 				{
-					LogManager.GameLog.WriteLine(ex);
+					LogManager.ErrorLog.WriteLine(ex);
 					Thread.Sleep(5000);
 				}
 			}
@@ -394,7 +398,7 @@ namespace WarpDrivePlugin
 			}
 			catch (Exception ex)
 			{
-				LogManager.GameLog.WriteLine(ex);
+				LogManager.ErrorLog.WriteLine(ex);
 			}
 
 			m_resourceLock.ReleaseExclusive();
@@ -436,7 +440,7 @@ namespace WarpDrivePlugin
 				}
 				catch (Exception ex)
 				{
-					LogManager.GameLog.WriteLine(ex);
+					LogManager.ErrorLog.WriteLine(ex);
 				}
 			}
 
