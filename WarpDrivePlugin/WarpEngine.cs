@@ -499,6 +499,11 @@ namespace WarpDrivePlugin
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
 
+				if (m_isStartingWarp && IsPlayerInCockpit())
+				{
+					m_warpRequest = DateTime.Now;
+				}
+
 				if (m_isStartingWarp && speed > Core._SpeedThreshold && !IsPlayerInCockpit())
 				{
 					m_isCountdownRunning = true;
@@ -584,6 +589,7 @@ namespace WarpDrivePlugin
 			try
 			{
 				m_isStartingWarp = false;
+				m_isCountdownRunning = false;
 
 				if (SandboxGameAssemblyWrapper.IsDebugging)
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is attempting to warp ...");
@@ -672,7 +678,7 @@ namespace WarpDrivePlugin
 
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
-				if (speed < 10)
+				if (speed < 5)
 				{
 					if (SandboxGameAssemblyWrapper.IsDebugging)
 						LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is back at normal speed!");
@@ -715,8 +721,8 @@ namespace WarpDrivePlugin
 						CockpitEntity cockpit = (CockpitEntity)cubeBlock;
 						if (cockpit.Pilot != null && !cockpit.IsPassengerSeat)
 						{
-							if (SandboxGameAssemblyWrapper.IsDebugging)
-								LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' cannot warp, player '" + cockpit.Pilot.DisplayName + "' is in a cockpit!");
+							//if (SandboxGameAssemblyWrapper.IsDebugging)
+								//LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' cannot warp, player '" + cockpit.Pilot.DisplayName + "' is in a cockpit!");
 
 							isPlayerInCockpit = true;
 							break;
