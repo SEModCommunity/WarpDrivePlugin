@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Timers;
 
+using Sandbox.Common.ObjectBuilders;
+using Sandbox.Definitions;
+
 using SEModAPIExtensions.API;
 
 using SEModAPIInternal.API.Common;
@@ -92,10 +95,7 @@ namespace WarpDrivePlugin
 		{
 			get
 			{
-				if (Parent.Mass > 0)
-					m_energyRequired = Core._BaseFuel + Core._FuelRate * (Parent.Mass / 100000);
-				else
-					m_energyRequired = Core._BaseFuel;
+				m_energyRequired = Core._BaseFuel + Core._FuelRate * (Parent.Mass / 100000) * (1.0f / Math.Max(0.1f, CoilEfficiency));
 
 				return m_energyRequired;
 			}
@@ -138,8 +138,40 @@ namespace WarpDrivePlugin
 		{
 			get
 			{
-				float distance = Core._SpeedFactor * 100 * Core._Duration;
+				float distance = Core._SpeedFactor * 100 * EngineEfficiency * Core._Duration;
 				return distance;
+			}
+		}
+
+		public virtual float CoilEfficiency
+		{
+			get
+			{
+				return 1.0f;
+			}
+		}
+
+		public virtual float EngineEfficiency
+		{
+			get
+			{
+				return 1.0f;
+			}
+		}
+
+		public virtual string EngineName
+		{
+			get
+			{
+				return "Class I";
+			}
+		}
+
+		public virtual float ParentPowerRequirement
+		{
+			get
+			{
+				return 200.0f;
 			}
 		}
 
@@ -180,16 +212,16 @@ namespace WarpDrivePlugin
 			}
 		}
 
-		protected List<ReflectorLightEntity> Lights
+		protected List<LightEntity> Lights
 		{
 			get
 			{
-				List<ReflectorLightEntity> list = new List<ReflectorLightEntity>();
+				List<LightEntity> list = new List<LightEntity>();
 				foreach (CubeBlockEntity cubeBlock in Blocks)
 				{
-					if (cubeBlock is ReflectorLightEntity)
+					if (cubeBlock is LightEntity)
 					{
-						ReflectorLightEntity light = (ReflectorLightEntity)cubeBlock;
+						LightEntity light = (LightEntity)cubeBlock;
 						list.Add(light);
 					}
 				}
@@ -221,7 +253,7 @@ namespace WarpDrivePlugin
 			return m_definition;
 		}
 
-		private Dictionary<Vector3I, StructureEntry> WarpEngineDefinition()
+		protected virtual Dictionary<Vector3I, StructureEntry> WarpEngineDefinition()
 		{
 			Dictionary<Vector3I, StructureEntry> def = new Dictionary<Vector3I, StructureEntry>();
 			if (IsDisposed)
@@ -365,10 +397,12 @@ namespace WarpDrivePlugin
 				if (cubeBlock is BatteryBlockEntity)
 				{
 					BatteryBlockEntity battery = (BatteryBlockEntity)cubeBlock;
-					battery.MaxStoredPower = 1;
-					battery.RequiredPowerInput = 4;
-					battery.MaxPowerOutput = 4;
-					battery.CurrentStoredPower = Math.Min(battery.CurrentStoredPower, battery.MaxStoredPower);
+
+					MyBatteryBlockDefinition def = (MyBatteryBlockDefinition)battery.Definition;
+					battery.MaxStoredPower = def.MaxStoredPower;
+					battery.RequiredPowerInput = def.RequiredPowerInput;
+					battery.MaxPowerOutput = def.MaxPowerOutput;
+					battery.CurrentStoredPower = 0;
 				}
 			}
 
@@ -382,17 +416,21 @@ namespace WarpDrivePlugin
 				if (m_isPowerSetup)
 					return;
 
-				if (SandboxGameAssemblyWrapper.IsDebugging)
-					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Setting up batteries on '" + Parent.Name + " ...");
-
-				if (BatteryBlocks.Count < 4)
-					throw new Exception("Some batteries are missing!");
-
 				foreach (BatteryBlockEntity battery in BatteryBlocks)
 				{
-					battery.MaxStoredPower = 100;
-					battery.RequiredPowerInput = 40;
+					if (Parent.GridSizeEnum == MyCubeSize.Large)
+					{
+						battery.MaxStoredPower = 100;
+						battery.RequiredPowerInput = 40;
+					}
+					else
+					{
+						battery.MaxStoredPower = 20;
+						battery.RequiredPowerInput = 8;
+					}
+
 					battery.MaxPowerOutput = 0.001f;
+					battery.CustomName = "Warp Coil";
 				}
 
 				m_isPowerSetup = true;
@@ -407,9 +445,6 @@ namespace WarpDrivePlugin
 		{
 			try
 			{
-				if (Lights.Count < 13)
-					throw new Exception("Some lights are missing!");
-
 				if (PowerLevel < PowerRequired)
 				{
 					if (!m_lightMode)
@@ -417,7 +452,7 @@ namespace WarpDrivePlugin
 						if (SandboxGameAssemblyWrapper.IsDebugging)
 							LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Updating lights on '" + Parent.Name + " to low-energy ...");
 
-						foreach (ReflectorLightEntity light in Lights)
+						foreach (LightEntity light in Lights)
 						{
 							light.Color = new Color(198, 108, 66);
 						}
@@ -431,7 +466,7 @@ namespace WarpDrivePlugin
 						if (SandboxGameAssemblyWrapper.IsDebugging)
 							LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Updating lights on '" + Parent.Name + " to high-energy ...");
 
-						foreach (ReflectorLightEntity light in Lights)
+						foreach (LightEntity light in Lights)
 						{
 							light.Color = new Color(66, 108, 198);
 						}
@@ -457,10 +492,14 @@ namespace WarpDrivePlugin
 
 				List<CharacterEntity> characters = SectorObjectManager.Instance.GetTypedInternalData<CharacterEntity>();
 
-				Vector3I beaconBlockPos = Beacon.Min;
+				float blockSize = 2.5f;
+				if (Parent.GridSizeEnum != MyCubeSize.Large)
+					blockSize = 0.5f;
+
+				Vector3I beaconBlockPos = Beacon.Position;
 				Matrix matrix = Parent.PositionAndOrientation.GetMatrix();
 				Matrix orientation = matrix.GetOrientation();
-				Vector3 rotatedBlockPos = Vector3.Transform((Vector3)beaconBlockPos * 2.5f, orientation);
+				Vector3 rotatedBlockPos = Vector3.Transform((Vector3)beaconBlockPos * blockSize, orientation);
 				Vector3 beaconPos = rotatedBlockPos + Parent.Position;
 
 				foreach (CharacterEntity character in characters)
@@ -487,6 +526,8 @@ namespace WarpDrivePlugin
 			try
 			{
 				if (!IsFunctional)
+					return;
+				if (Parent.TotalPower < ParentPowerRequirement)
 					return;
 
 				m_timeSinceLastUpdate = DateTime.Now - m_lastUpdate;
@@ -521,7 +562,7 @@ namespace WarpDrivePlugin
 				else
 				{
 					m_isCountdownRunning = false;
-					Beacon.CustomName = Core._BeaconText;
+					Beacon.CustomName = Core._BeaconText + " " + EngineName;
 					Beacon.BroadcastRadius = Core._BeaconRange;
 				}
 
@@ -533,7 +574,7 @@ namespace WarpDrivePlugin
 						float distanceWarped = Vector3.Distance(m_warpStartPosition, Parent.Position);
 
 						//Slow down if at speed, elapsed time is greater than duration, and warp distance is at least met
-						if (speed > (0.95 * Core._SpeedFactor * 100) && m_timeSinceWarpStart.TotalMilliseconds > Core._Duration * 1000 && distanceWarped > WarpDistance)
+						if (speed > (0.95 * Core._SpeedFactor * 100 * EngineEfficiency) && m_timeSinceWarpStart.TotalMilliseconds > Core._Duration * 1000 && distanceWarped > WarpDistance)
 						{
 							m_isSpeedingUp = false;
 							m_isAtWarpSpeed = false;
@@ -615,7 +656,7 @@ namespace WarpDrivePlugin
 					LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' consumed " + PowerRequired.ToString() + "MJ of power!");
 
 				//Set the ship's max speed
-				Parent.MaxLinearVelocity = 100 * Core._SpeedFactor;
+				Parent.MaxLinearVelocity = 100 * EngineEfficiency * Core._SpeedFactor;
 				Parent.IsDampenersEnabled = false;
 
 				//Start the acceleration procedure
@@ -643,7 +684,7 @@ namespace WarpDrivePlugin
 
 				Vector3 velocity = (Vector3)Parent.LinearVelocity;
 				float speed = velocity.Length();
-				if (speed > (0.95 * Core._SpeedFactor * 100))
+				if (speed > (0.95 * Core._SpeedFactor * 100 * EngineEfficiency))
 				{
 					if (SandboxGameAssemblyWrapper.IsDebugging)
 						LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' is at warp speed!");
@@ -719,11 +760,8 @@ namespace WarpDrivePlugin
 					if (cubeBlock.GetType() == typeof(CockpitEntity))
 					{
 						CockpitEntity cockpit = (CockpitEntity)cubeBlock;
-						if (cockpit.Pilot != null && !cockpit.IsPassengerSeat)
+						if (cockpit.PilotEntity != null && !cockpit.IsPassengerSeat)
 						{
-							//if (SandboxGameAssemblyWrapper.IsDebugging)
-								//LogManager.APILog.WriteLineAndConsole("WarpDrivePlugin - Ship '" + Parent.Name + "' cannot warp, player '" + cockpit.Pilot.DisplayName + "' is in a cockpit!");
-
 							isPlayerInCockpit = true;
 							break;
 						}

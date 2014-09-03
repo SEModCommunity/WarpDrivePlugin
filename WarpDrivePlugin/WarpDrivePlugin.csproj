@@ -42,6 +42,9 @@
     <Compile Include="Core.cs" />
     <Compile Include="WarpEngine.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="WarpEngineClassThree.cs" />
+    <Compile Include="WarpEngineClassTwo.cs" />
+    <Compile Include="WarpEngineClassZero.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Sandbox.Common">
@@ -49,6 +52,9 @@
     </Reference>
     <Reference Include="Sandbox.Common.XmlSerializers">
       <HintPath>..\Libraries\Sandbox.Common.XmlSerializers.dll</HintPath>
+    </Reference>
+    <Reference Include="Sandbox.Game">
+      <HintPath>..\Libraries\Sandbox.Game.dll</HintPath>
     </Reference>
     <Reference Include="SEModAPI">
       <HintPath>..\Libraries\SEModAPI.dll</HintPath>

@@ -277,7 +277,7 @@ namespace WarpDrivePlugin
 						//Check if ship is going fast enough to warp
 						Vector3 velocity = warpEngine.Parent.LinearVelocity;
 						float speed = velocity.Length();
-						if (!warpEngine.IsWarping && speed > m_speedThreshold && speed < 0.95 * m_speedFactor * 100)
+						if (!warpEngine.IsWarping && speed > m_speedThreshold)
 						{
 							if (warpEngine.CanWarp)
 								warpEngine.StartWarp();
@@ -341,29 +341,49 @@ namespace WarpDrivePlugin
 			engine.Dispose();
 		}
 
-		protected void CreateWarpEngine(CubeBlockEntity cubeBlock)
+		protected void CreateWarpEngine(CubeBlockEntity cubeBlock, int engineClass = 1)
 		{
 			if (cubeBlock == null || cubeBlock.IsDisposed)
 				return;
 
 			CubeGridEntity cubeGrid = cubeBlock.Parent;
-
 			if (m_warpEngineMap.ContainsKey(cubeGrid))
 				return;
 
-			WarpEngine warpEngine = new WarpEngine(cubeGrid);
+			WarpEngine warpEngine = null;
+			switch (engineClass)
+			{
+				case 0:
+					warpEngine = new WarpEngineClassZero(cubeGrid);
+					break;
+				case 1:
+					warpEngine = new WarpEngine(cubeGrid);
+					break;
+				case 2:
+					warpEngine = new WarpEngineClassTwo(cubeGrid);
+					break;
+				case 3:
+					warpEngine = new WarpEngineClassThree(cubeGrid);
+					break;
+				default:
+					warpEngine = new WarpEngine(cubeGrid);
+					break;
+			}
+			if (warpEngine == null)
+				return;
+
 			if (!warpEngine.IsDefinitionMatch(cubeBlock))
 				return;
-			warpEngine.LoadBlocksFromAnchor(cubeBlock.Min);
+			warpEngine.LoadBlocksFromAnchor(cubeBlock.Position);
 			if (warpEngine.Blocks.Count == 0)
 			{
-				LogManager.APILog.WriteLineAndConsole("Failed to create warp engine on cube grid '" + cubeGrid.Name + "' with anchor at " + ((Vector3I)cubeBlock.Min).ToString());
+				LogManager.APILog.WriteLineAndConsole("Failed to create warp engine on cube grid '" + cubeGrid.Name + "' with anchor at " + cubeBlock.Position.ToString());
 				return;
 			}
 
 			m_warpEngineMap.Add(cubeGrid, warpEngine);
 
-			LogManager.APILog.WriteLineAndConsole("Created warp engine on cube grid '" + cubeGrid.Name + "' with anchor at " + ((Vector3I)cubeBlock.Min).ToString());
+			LogManager.APILog.WriteLineAndConsole("Created warp engine on cube grid '" + cubeGrid.Name + "' with anchor at " + cubeBlock.Position.ToString());
 		}
 
 		protected bool CheckEngineForRemoval(WarpEngine engine)
@@ -415,10 +435,6 @@ namespace WarpDrivePlugin
 			{
 				try
 				{
-					//Skip if not large cube grid
-					if (cubeGrid.GridSizeEnum != MyCubeSize.Large)
-						continue;
-
 					//Skip if cube grid already has engine
 					if (m_warpEngineMap.ContainsKey(cubeGrid))
 						continue;
@@ -430,12 +446,42 @@ namespace WarpDrivePlugin
 					//Force a cube block refresh
 					List<CubeBlockEntity> cubeBlocks = cubeGrid.CubeBlocks;
 
-					//Scan cube grid for engines
-					WarpEngine dummyEngine = new WarpEngine(null);
-					List<Vector3I> matches = dummyEngine.GetDefinitionMatches(cubeGrid);
-					if (matches.Count > 0)
+					//Check for a class-0 engine on small ships
+					if (cubeGrid.GridSizeEnum != MyCubeSize.Large)
 					{
-						CreateWarpEngine(dummyEngine.AnchorBlock);
+						//Scan cube grid for class-0 engines
+						WarpEngineClassZero dummyEngine0 = new WarpEngineClassZero(null);
+						List<Vector3I> matches0 = dummyEngine0.GetDefinitionMatches(cubeGrid);
+						if (matches0.Count > 0 && cubeGrid.TotalPower >= dummyEngine0.ParentPowerRequirement)
+						{
+							CreateWarpEngine(dummyEngine0.AnchorBlock, 0);
+						}
+
+						continue;
+					}
+
+					//Scan cube grid for class-1 engines
+					WarpEngine dummyEngine1 = new WarpEngine(null);
+					List<Vector3I> matches = dummyEngine1.GetDefinitionMatches(cubeGrid);
+					if (matches.Count > 0 && cubeGrid.TotalPower >= dummyEngine1.ParentPowerRequirement)
+					{
+						CreateWarpEngine(dummyEngine1.AnchorBlock, 1);
+					}
+					/*
+					//Scan cube grid for class-2 engines
+					WarpEngineClassTwo dummyEngine2 = new WarpEngineClassTwo(null);
+					matches = dummyEngine2.GetDefinitionMatches(cubeGrid);
+					if (matches.Count > 0 && cubeGrid.TotalPower >= dummyEngine2.ParentPowerRequirement)
+					{
+						CreateWarpEngine(dummyEngine2.AnchorBlock, 2);
+					}
+					*/
+					//Scan cube grid for class-3 engines
+					WarpEngineClassThree dummyEngine3 = new WarpEngineClassThree(null);
+					matches = dummyEngine3.GetDefinitionMatches(cubeGrid);
+					if (matches.Count > 0 && cubeGrid.TotalPower >= dummyEngine3.ParentPowerRequirement)
+					{
+						CreateWarpEngine(dummyEngine3.AnchorBlock, 3);
 					}
 				}
 				catch (Exception ex)
